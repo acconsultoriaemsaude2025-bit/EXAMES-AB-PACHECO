@@ -376,7 +376,7 @@ def dashboard():
 @login_required
 def autorizacao():
     db = get_db()
-    exames = db.execute("SELECT codigo, descricao FROM exames ORDER BY descricao").fetchall()
+    exames = db.execute("SELECT codigo, descricao, valor_unitario, quantidade_contratada FROM exames ORDER BY descricao").fetchall()
     if request.method == "POST":
         data_db = parse_data(request.form.get("data_autorizacao",""))
         pac  = request.form.get("nome_paciente","").strip()
