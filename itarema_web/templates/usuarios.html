@@ -29,7 +29,8 @@
           <div class="mb-3">
             <label class="form-label fw-semibold">Perfil</label>
             <select name="perfil" class="form-select">
-              <option value="operador">Operador – acesso padrão</option>
+              <option value="operador">Operador – cadastra autorizações</option>
+              <option value="prestador">Prestador – confirma exames</option>
               <option value="admin">Administrador – acesso total</option>
             </select>
           </div>
@@ -69,6 +70,8 @@
               <td>
                 {% if u.perfil == 'admin' %}
                   <span class="badge bg-danger"><i class="bi bi-shield-check me-1"></i>Admin</span>
+                {% elif u.perfil == 'prestador' %}
+                  <span class="badge bg-info text-dark"><i class="bi bi-building-check me-1"></i>Prestador</span>
                 {% else %}
                   <span class="badge bg-secondary">Operador</span>
                 {% endif %}
@@ -118,8 +121,9 @@
     <div class="card mt-3">
       <div class="card-body py-2" style="font-size:.82rem">
         <strong><i class="bi bi-info-circle me-1"></i>Perfis de acesso:</strong>
-        <span class="badge bg-danger ms-2">Admin</span> Acesso total + gerenciar usuários
-        <span class="badge bg-secondary ms-3">Operador</span> Cadastrar autorizações, consultar histórico e relatórios
+        <span class="badge bg-danger ms-2">Admin</span> Acesso total + gerenciar usuários &nbsp;
+        <span class="badge bg-secondary ms-2">Operador</span> Cadastrar autorizações, histórico e relatórios &nbsp;
+        <span class="badge bg-info text-dark ms-2">Prestador</span> Apenas confirmar status dos exames autorizados
       </div>
     </div>
   </div>

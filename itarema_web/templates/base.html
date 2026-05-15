@@ -108,6 +108,14 @@
     </span>
   </div>
   <div class="flex-grow-1 py-2">
+    {% if session.usuario_perfil == 'prestador' %}
+    <!-- MENU PRESTADOR -->
+    <div class="section-label">Prestador</div>
+    <a href="{{ url_for('confirmar_exames') }}" class="nav-link {% if request.endpoint=='confirmar_exames' %}active{% endif %}">
+      <i class="bi bi-check2-square"></i> Confirmar Exames
+    </a>
+    {% else %}
+    <!-- MENU ADMIN / OPERADOR -->
     <div class="section-label">Principal</div>
     <a href="{{ url_for('dashboard') }}" class="nav-link {% if request.endpoint=='dashboard' %}active{% endif %}">
       <i class="bi bi-speedometer2"></i> Dashboard
@@ -133,6 +141,7 @@
     <a href="{{ url_for('usuarios') }}" class="nav-link {% if request.endpoint=='usuarios' %}active{% endif %}">
       <i class="bi bi-people"></i> Usuários
     </a>
+    {% endif %}
     {% endif %}
   </div>
   <div class="p-3" style="border-top:1px solid rgba(255,255,255,.1)">

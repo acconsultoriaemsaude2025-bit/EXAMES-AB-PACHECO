@@ -450,9 +450,43 @@ def dashboard():
                            total_aut=total_aut, status_data=status_data, ultimas=ultimas,
                            ano=ano, meses_labels=meses_labels, meses_valores=meses_valores)
 
+@app.route("/confirmar", methods=["GET","POST"])
+@login_required
+def confirmar_exames():
+    # Prestador só acessa esta rota; admin/operador também podem ver
+    if request.method == "POST":
+        id_aut     = request.form.get("id")
+        novo_status = request.form.get("status","").strip()
+        if novo_status in ("REALIZADO","PENDENTE","CANCELADO"):
+            db = get_db()
+            db.execute("UPDATE autorizacoes SET status=? WHERE id=?", (novo_status, id_aut))
+            db.commit(); db.close()
+            flash(f"✅ Status atualizado para {novo_status}!", "success")
+        return redirect(url_for("confirmar_exames",
+                                paciente=request.args.get("paciente",""),
+                                mes=request.args.get("mes",""),
+                                exame=request.args.get("exame","")))
+    db  = get_db()
+    pac   = request.args.get("paciente","")
+    mes   = request.args.get("mes","")
+    exame = request.args.get("exame","")
+    q  = "SELECT * FROM autorizacoes WHERE 1=1"
+    p  = []
+    if pac:   q += " AND nome_paciente LIKE ?";   p.append(f"%{pac}%")
+    if mes:   q += " AND strftime('%m',data_autorizacao)=?"; p.append(mes.zfill(2))
+    if exame: q += " AND (descricao_exame LIKE ? OR codigo_exame LIKE ?)"; p += [f"%{exame}%"]*2
+    q += " ORDER BY data_autorizacao DESC, id DESC"
+    rows = db.execute(q, p).fetchall()
+    db.close()
+    return render_template("confirmar.html", rows=rows,
+                           filtros={"paciente":pac,"mes":mes,"exame":exame})
+
 @app.route("/autorizacao", methods=["GET","POST"])
 @login_required
 def autorizacao():
+    if session.get("usuario_perfil") == "prestador":
+        flash("⛔ Acesso não permitido para o perfil Prestador.", "danger")
+        return redirect(url_for("confirmar_exames"))
     db = get_db()
     exames = db.execute("SELECT codigo, descricao, valor_unitario, quantidade_contratada FROM exames ORDER BY descricao").fetchall()
     if request.method == "POST":
@@ -663,6 +697,9 @@ def saldo_exames():
 @app.route("/exames", methods=["GET","POST"])
 @login_required
 def exames():
+    if session.get("usuario_perfil") == "prestador":
+        flash("⛔ Acesso não permitido para o perfil Prestador.", "danger")
+        return redirect(url_for("confirmar_exames"))
     db = get_db()
     if request.method == "POST":
         acao = request.form.get("acao")
