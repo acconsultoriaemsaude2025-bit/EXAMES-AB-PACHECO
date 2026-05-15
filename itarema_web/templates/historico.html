@@ -85,6 +85,9 @@
             {% else %}<span class="badge bg-danger">{{ st }}</span>{% endif %}
           </td>
           <td>
+            {% set eh_dono = (r.criado_por_id == session.usuario_id or r.criado_por_id is none) %}
+            {% set eh_admin = session.usuario_perfil == 'admin' %}
+            {% if eh_dono or eh_admin %}
             <a href="{{ url_for('editar_aut', id=r.id) }}" class="btn btn-xs btn-outline-primary btn-sm py-0 px-1" title="Editar">
               <i class="bi bi-pencil"></i>
             </a>
@@ -94,6 +97,11 @@
                 <i class="bi bi-trash"></i>
               </button>
             </form>
+            {% else %}
+            <span class="text-muted" style="font-size:.75rem" title="Criado por {{ r.criado_por_nome or 'outro usuário' }}">
+              <i class="bi bi-lock text-secondary"></i>
+            </span>
+            {% endif %}
           </td>
         </tr>
         {% else %}
