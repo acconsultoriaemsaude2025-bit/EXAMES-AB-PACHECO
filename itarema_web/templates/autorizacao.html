@@ -68,7 +68,14 @@
             </div>
             <!-- Info do exame -->
             <div class="col-12" id="infoExame" style="display:none">
-              <div class="alert alert-info py-2 mb-0" id="infoBox"></div>
+              <div class="alert py-2 mb-0" id="infoBox"></div>
+            </div>
+            <!-- Alerta de saldo esgotado -->
+            <div class="col-12" id="alertaSaldo" style="display:none">
+              <div class="alert alert-danger py-2 mb-0 fw-bold">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <span id="alertaSaldoMsg"></span>
+              </div>
             </div>
             <!-- Linha 4 -->
             <div class="col-md-4">
@@ -165,12 +172,16 @@ dataAut.addEventListener('change', function(){
     datePicker.value = `${parts[2]}-${parts[1]}-${parts[0]}`;
 });
 
-const sel = document.getElementById('selExame');
-const vu  = document.getElementById('vu');
-const qtde = document.getElementById('qtde');
-const totalEl = document.getElementById('total');
-const infoBox = document.getElementById('infoBox');
-const infoDiv = document.getElementById('infoExame');
+const sel         = document.getElementById('selExame');
+const vu          = document.getElementById('vu');
+const qtde        = document.getElementById('qtde');
+const totalEl     = document.getElementById('total');
+const infoBox     = document.getElementById('infoBox');
+const infoDiv     = document.getElementById('infoExame');
+const alertaSaldo = document.getElementById('alertaSaldo');
+const alertaMsg   = document.getElementById('alertaSaldoMsg');
+const btnSalvar   = document.querySelector('#frmAut button[type=submit]');
+let saldoAtual    = 9999; // saldo disponível do exame selecionado
 
 function calcTotal(){
   const v = parseFloat(vu.value)||0;
@@ -178,26 +189,57 @@ function calcTotal(){
   totalEl.value = 'R$ ' + (v*q).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 }
 
+function verificarSaldo(){
+  const q = parseInt(qtde.value)||1;
+  const statusVal = document.querySelector('select[name=status]').value;
+  if(statusVal === 'CANCELADO'){ alertaSaldo.style.display='none'; btnSalvar.disabled=false; return; }
+  if(saldoAtual <= 0){
+    alertaMsg.textContent = '⛔ Saldo ESGOTADO! Este exame não possui mais unidades disponíveis no contrato.';
+    alertaSaldo.style.display='';
+    btnSalvar.disabled = true;
+  } else if(q > saldoAtual){
+    alertaMsg.textContent = `⚠️ Quantidade (${q}) excede o saldo disponível (${saldoAtual}). Reduza a quantidade.`;
+    alertaSaldo.style.display='';
+    btnSalvar.disabled = true;
+  } else {
+    alertaSaldo.style.display='none';
+    btnSalvar.disabled = false;
+  }
+}
+
 sel.addEventListener('change', function(){
   const cod = this.value;
-  if(!cod){ infoDiv.style.display='none'; vu.value='0.00'; calcTotal(); return; }
+  if(!cod){
+    infoDiv.style.display='none';
+    alertaSaldo.style.display='none';
+    vu.value='0.00';
+    saldoAtual=9999;
+    btnSalvar.disabled=false;
+    calcTotal();
+    return;
+  }
   fetch('/api/exame/'+cod)
     .then(r=>r.json())
     .then(d=>{
       if(d.erro){ infoDiv.style.display='none'; return; }
       vu.value = d.valor_unitario.toFixed(2);
+      saldoAtual = d.saldo;
       calcTotal();
       const saldo = d.saldo;
       const cls   = saldo <= 0 ? 'danger' : saldo <= 5 ? 'warning' : 'info';
       infoBox.className = `alert alert-${cls} py-2 mb-0`;
-      infoBox.innerHTML = `<strong>${d.descricao}</strong><br>
-        Qtde contratada: <b>${d.qtd_contratada}</b> | 
-        Usada: <b>${d.qtd_usada}</b> | 
-        <span class="${saldo<=0?'text-danger fw-bold':''}">Saldo: <b>${saldo}</b></span>`;
+      infoBox.innerHTML = `<i class="bi bi-clipboard2-pulse me-1"></i><strong>${d.descricao}</strong><br>
+        Qtde contratada: <b>${d.qtd_contratada}</b> &nbsp;|&nbsp;
+        Usada: <b>${d.qtd_usada}</b> &nbsp;|&nbsp;
+        Saldo: <b class="${saldo<=0?'text-danger':'saldo<=5?text-warning':'text-success'}">${saldo}</b>
+        ${saldo<=0 ? ' <span class="badge bg-danger ms-1">ESGOTADO</span>' : saldo<=5 ? ' <span class="badge bg-warning text-dark ms-1">CRÍTICO</span>' : ''}`;
       infoDiv.style.display='';
+      verificarSaldo();
     });
 });
-qtde.addEventListener('input', calcTotal);
+
+qtde.addEventListener('input', function(){ calcTotal(); verificarSaldo(); });
+document.querySelector('select[name=status]').addEventListener('change', verificarSaldo);
 
 // ── Validação CPF / CNS ────────────────────────────────────────────────────
 const tipoDoc    = document.getElementById('tipoDoc');
