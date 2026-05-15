@@ -238,7 +238,7 @@ def autorizacao():
     gasto = db.execute("SELECT COALESCE(SUM(valor_total),0) FROM autorizacoes WHERE status!='CANCELADO' AND strftime('%Y',data_autorizacao)=?", (str(CONTRATO_ANO),)).fetchone()[0]
     db.close()
     return render_template("autorizacao.html", exames=exames, orc=orc, gasto=gasto,
-                           saldo=orc-gasto, hoje=date.today().strftime("%d/%m/%Y"))
+                           saldo=orc-gasto, hoje_str=date.today().strftime("%d/%m/%Y"))
 
 @app.route("/api/exame/<codigo>")
 def api_exame(codigo):
