@@ -456,53 +456,101 @@ def autorizacao():
     db = get_db()
     exames = db.execute("SELECT codigo, descricao, valor_unitario, quantidade_contratada FROM exames ORDER BY descricao").fetchall()
     if request.method == "POST":
-        data_db = parse_data(request.form.get("data_autorizacao",""))
-        pac  = request.form.get("nome_paciente","").strip()
-        cod  = request.form.get("codigo_exame","").strip().upper()
-        resp = request.form.get("responsavel","").strip()
-        if not data_db: flash("Data inválida. Use DD/MM/AAAA.","danger"); return redirect(url_for("autorizacao"))
-        if not pac: flash("Informe o nome do paciente.","danger"); return redirect(url_for("autorizacao"))
-        if not cod: flash("Selecione o exame.","danger"); return redirect(url_for("autorizacao"))
-        if not resp: flash("Informe o responsável.","danger"); return redirect(url_for("autorizacao"))
-        try:
-            qtde = int(request.form.get("quantidade_liberada", 1))
-        except:
-            flash("Quantidade inválida.","danger"); return redirect(url_for("autorizacao"))
-        row_e = db.execute("SELECT descricao, quantidade_contratada, valor_unitario FROM exames WHERE codigo=?", (cod,)).fetchone()
-        desc  = row_e["descricao"] if row_e else ""
-        # Sempre usa o preço do banco de dados (ignora o valor do formulário)
-        vu    = float(row_e["valor_unitario"]) if row_e else 0.0
-        total = qtde * vu
-        # ── Verificação de saldo do exame ──────────────────────────────────────
+        data_db  = parse_data(request.form.get("data_autorizacao",""))
+        pac      = request.form.get("nome_paciente","").strip()
+        resp     = request.form.get("responsavel","").strip()
+        cpf_cns  = request.form.get("cpf_cns","").strip() or None
+        num_aut  = request.form.get("numero_autorizacao","").strip() or None
+        obs      = request.form.get("observacoes","").strip() or None
         status_form = request.form.get("status","AUTORIZADO")
-        if status_form != "CANCELADO":
-            qtd_contratada = int(row_e["quantidade_contratada"]) if row_e else 0
-            qtd_usada = db.execute(
-                "SELECT COALESCE(SUM(quantidade_liberada),0) FROM autorizacoes WHERE codigo_exame=? AND status!='CANCELADO'",
-                (cod,)).fetchone()[0]
-            saldo_exame = qtd_contratada - qtd_usada
-            if saldo_exame <= 0:
-                db.close()
-                flash(f"❌ Saldo ESGOTADO! O exame '{desc}' não possui mais unidades disponíveis no contrato.", "danger")
-                return redirect(url_for("autorizacao"))
-            if qtde > saldo_exame:
-                db.close()
-                flash(f"❌ Quantidade solicitada ({qtde}) excede o saldo disponível ({saldo_exame}) para '{desc}'. Reduza a quantidade.", "danger")
-                return redirect(url_for("autorizacao"))
-        db.execute("""INSERT INTO autorizacoes
-            (numero_autorizacao,data_autorizacao,nome_paciente,cpf_cns,codigo_exame,
-             descricao_exame,quantidade_liberada,valor_unitario,valor_total,
-             responsavel,status,observacoes,criado_por_id,criado_por_nome)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (request.form.get("numero_autorizacao","").strip() or None,
-             data_db, pac, request.form.get("cpf_cns","").strip() or None,
-             cod, desc, qtde, vu, total, resp,
-             request.form.get("status","AUTORIZADO"),
-             request.form.get("observacoes","").strip() or None,
-             session.get("usuario_id"), session.get("usuario_nome")))
+
+        # Validações dos campos comuns
+        if not data_db:
+            flash("Data inválida. Use o seletor de data.","danger")
+            db.close(); return redirect(url_for("autorizacao"))
+        if not pac:
+            flash("Informe o nome do paciente.","danger")
+            db.close(); return redirect(url_for("autorizacao"))
+        if not resp:
+            flash("Informe o responsável.","danger")
+            db.close(); return redirect(url_for("autorizacao"))
+
+        # Listas de exames submetidos pelo formulário
+        codigos   = [c.strip().upper() for c in request.form.getlist("codigo_exame") if c.strip()]
+        quantidades = request.form.getlist("quantidade_liberada")
+
+        if not codigos:
+            flash("Selecione pelo menos um exame.","danger")
+            db.close(); return redirect(url_for("autorizacao"))
+
+        # ── Valida cada exame antes de gravar qualquer um ──────────────────────
+        erros = []
+        itens = []  # lista de dicts prontos para inserção
+        for i, cod in enumerate(codigos):
+            try:
+                qtde = int(quantidades[i]) if i < len(quantidades) else 1
+                if qtde < 1: qtde = 1
+            except:
+                qtde = 1
+
+            row_e = db.execute(
+                "SELECT descricao, quantidade_contratada, valor_unitario FROM exames WHERE codigo=?",
+                (cod,)).fetchone()
+
+            if not row_e:
+                erros.append(f"Exame '{cod}' não encontrado no catálogo.")
+                continue
+
+            desc = row_e["descricao"]
+            vu   = float(row_e["valor_unitario"])
+            total_item = qtde * vu
+
+            # Verificação de saldo (apenas para status diferente de CANCELADO)
+            if status_form != "CANCELADO":
+                qtd_contratada = int(row_e["quantidade_contratada"])
+                qtd_usada = db.execute(
+                    "SELECT COALESCE(SUM(quantidade_liberada),0) FROM autorizacoes WHERE codigo_exame=? AND status!='CANCELADO'",
+                    (cod,)).fetchone()[0]
+                saldo_exame = qtd_contratada - qtd_usada
+                if saldo_exame <= 0:
+                    erros.append(f"❌ Saldo ESGOTADO para '{desc}' — sem unidades disponíveis no contrato.")
+                    continue
+                if qtde > saldo_exame:
+                    erros.append(f"❌ Qtde solicitada ({qtde}) excede saldo disponível ({saldo_exame}) para '{desc}'.")
+                    continue
+
+            itens.append({
+                "cod": cod, "desc": desc, "qtde": qtde,
+                "vu": vu, "total": total_item
+            })
+
+        if erros:
+            db.close()
+            for e in erros:
+                flash(e, "danger")
+            return redirect(url_for("autorizacao"))
+
+        # ── Grava um registro por exame ────────────────────────────────────────
+        total_geral = 0.0
+        for item in itens:
+            db.execute("""INSERT INTO autorizacoes
+                (numero_autorizacao,data_autorizacao,nome_paciente,cpf_cns,codigo_exame,
+                 descricao_exame,quantidade_liberada,valor_unitario,valor_total,
+                 responsavel,status,observacoes,criado_por_id,criado_por_nome)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                (num_aut, data_db, pac, cpf_cns,
+                 item["cod"], item["desc"], item["qtde"], item["vu"], item["total"],
+                 resp, status_form, obs,
+                 session.get("usuario_id"), session.get("usuario_nome")))
+            total_geral += item["total"]
+
         db.commit()
-        flash(f"✅ Autorização salva! Paciente: {pac} | Exame: {desc} | Valor: {fmt_brl(total)}","success")
+        qtd_exames = len(itens)
+        plural = "exame" if qtd_exames == 1 else "exames"
+        flash(f"✅ {qtd_exames} {plural} autorizado(s) para {pac} | Total: {fmt_brl(total_geral)}", "success")
+        db.close()
         return redirect(url_for("autorizacao"))
+
     # Saldo financeiro
     ano_atual = date.today().year
     orc  = (db.execute("SELECT valor FROM orcamento WHERE ano=?", (ano_atual,)).fetchone() or [CONTRATO_VALOR])[0]

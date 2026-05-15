@@ -3,7 +3,26 @@
 {% block icon %}plus-circle{% endblock %}
 {% block page_title %}Nova Autorização de Exame{% endblock %}
 
+{% block head %}
+<style>
+  .linha-exame { background:#f8faff; border:1px solid #dee2e6; border-radius:8px; padding:10px 12px; margin-bottom:8px; }
+  .linha-exame:first-child .btn-remover { display:none; }
+  .total-linha { font-weight:700; color:#198754; }
+  #tabelaExames .form-select { font-size:.85rem; }
+  #rodapeTotal { background:#1F3864; color:#fff; border-radius:8px; padding:10px 16px; }
+</style>
+{% endblock %}
+
 {% block content %}
+<!-- Template oculto das opções de exame (clonado em cada linha) -->
+<datalist id="opcoesExame">
+  {% for ex in exames %}
+  <option value="{{ ex.codigo }}" data-valor="{{ ex.valor_unitario }}" data-desc="{{ ex.descricao }}" data-qtd="{{ ex.quantidade_contratada }}">
+    {{ ex.codigo }} – {{ ex.descricao }}
+  </option>
+  {% endfor %}
+</datalist>
+
 <div class="row g-3">
   <div class="col-lg-8">
     <div class="card">
@@ -12,11 +31,11 @@
       </div>
       <div class="card-body">
         <form method="post" id="frmAut">
-          <div class="row g-2">
-            <!-- Linha 1 -->
+          <div class="row g-2 mb-3">
+            <!-- Nº / Data / Status -->
             <div class="col-md-4">
               <label class="form-label fw-semibold">Nº Autorização</label>
-              <input name="numero_autorizacao" type="text" class="form-control" placeholder="Ex: 2024-0001">
+              <input name="numero_autorizacao" type="text" class="form-control" placeholder="Ex: 2026-0001">
             </div>
             <div class="col-md-4">
               <label class="form-label fw-semibold">Data <span class="text-danger">*</span></label>
@@ -32,95 +51,66 @@
                 <option value="CANCELADO">CANCELADO</option>
               </select>
             </div>
-            <!-- Linha 2 -->
+            <!-- Paciente / Identificação -->
             <div class="col-md-8">
               <label class="form-label fw-semibold">Nome do Paciente <span class="text-danger">*</span></label>
-              <input name="nome_paciente" type="text" class="form-control"
-                     placeholder="Nome completo do paciente" required>
+              <input name="nome_paciente" type="text" class="form-control" placeholder="Nome completo do paciente" required>
             </div>
             <div class="col-md-4">
-              <label class="form-label fw-semibold">Identificação do Paciente</label>
+              <label class="form-label fw-semibold">Identificação</label>
               <div class="input-group">
-                <select id="tipoDoc" class="form-select" style="max-width:80px" title="Tipo de documento">
+                <select id="tipoDoc" class="form-select" style="max-width:80px">
                   <option value="CPF">CPF</option>
                   <option value="CNS">CNS</option>
                 </select>
-                <input name="cpf_cns" id="docInput" type="text" class="form-control"
-                       placeholder="000.000.000-00" maxlength="18" autocomplete="off">
-                <span class="input-group-text px-2" id="docStatus" title="">
-                  <i class="bi bi-dash-circle text-secondary" id="docIcon"></i>
-                </span>
+                <input name="cpf_cns" id="docInput" type="text" class="form-control" placeholder="000.000.000-00" maxlength="18" autocomplete="off">
+                <span class="input-group-text px-2"><i class="bi bi-dash-circle text-secondary" id="docIcon"></i></span>
               </div>
               <div id="docFeedback" class="form-text" style="font-size:.75rem"></div>
             </div>
-            <!-- Linha 3 – Exame -->
-            <div class="col-12">
-              <label class="form-label fw-semibold">Exame <span class="text-danger">*</span></label>
-              <!-- Filtro de busca -->
-              <div class="input-group mb-1">
-                <span class="input-group-text bg-white"><i class="bi bi-search text-secondary"></i></span>
-                <input type="text" id="filtroExame" class="form-control"
-                       placeholder="Buscar por código ou descrição do exame..."
-                       autocomplete="off">
-                <button type="button" class="btn btn-outline-secondary" id="btnLimparFiltro" title="Limpar busca">
-                  <i class="bi bi-x-lg"></i>
-                </button>
-              </div>
-              <div id="contadorExames" class="form-text mb-1" style="font-size:.75rem"></div>
-              <select name="codigo_exame" id="selExame" class="form-select" required size="1">
-                <option value="">— Selecione o exame —</option>
-                {% for ex in exames %}
-                <option value="{{ ex.codigo }}"
-                        data-valor="{{ ex.valor_unitario }}"
-                        data-desc="{{ ex.descricao }}"
-                        data-qtd="{{ ex.quantidade_contratada }}">
-                  {{ ex.codigo }} – {{ ex.descricao }}
-                </option>
-                {% endfor %}
-              </select>
-            </div>
-            <!-- Info do exame -->
-            <div class="col-12" id="infoExame" style="display:none">
-              <div class="alert py-2 mb-0" id="infoBox"></div>
-            </div>
-            <!-- Alerta de saldo esgotado -->
-            <div class="col-12" id="alertaSaldo" style="display:none">
-              <div class="alert alert-danger py-2 mb-0 fw-bold">
-                <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                <span id="alertaSaldoMsg"></span>
-              </div>
-            </div>
-            <!-- Linha 4 -->
-            <div class="col-md-4">
-              <label class="form-label fw-semibold">Qtde Liberada <span class="text-danger">*</span></label>
-              <input name="quantidade_liberada" id="qtde" type="number" class="form-control"
-                     value="1" min="1" required>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label fw-semibold">Valor Unitário (R$)</label>
-              <input name="valor_unitario" id="vu" type="number" class="form-control"
-                     step="0.01" value="0.00" readonly>
-            </div>
-            <div class="col-md-4">
-              <label class="form-label fw-semibold">Valor Total</label>
-              <input id="total" type="text" class="form-control fw-bold text-success" readonly value="R$ 0,00">
-            </div>
-            <!-- Linha 5 -->
+          </div>
+
+          <!-- ── TABELA DE EXAMES ── -->
+          <div class="mb-2 d-flex align-items-center justify-content-between">
+            <label class="form-label fw-semibold mb-0">
+              <i class="bi bi-clipboard2-pulse me-1"></i>Exames Solicitados <span class="text-danger">*</span>
+            </label>
+            <button type="button" class="btn btn-sm btn-outline-primary" id="btnAddExame">
+              <i class="bi bi-plus-circle me-1"></i>Adicionar Exame
+            </button>
+          </div>
+
+          <div id="tabelaExames"></div>
+
+          <!-- Alerta geral de saldo -->
+          <div id="alertaGeral" class="alert alert-danger py-2 mb-2 fw-bold" style="display:none">
+            <i class="bi bi-exclamation-triangle-fill me-1"></i>
+            <span id="alertaGeralMsg"></span>
+          </div>
+
+          <!-- Total Geral -->
+          <div id="rodapeTotal" class="d-flex justify-content-between align-items-center mb-3">
+            <span><i class="bi bi-calculator me-1"></i>Total Geral</span>
+            <span id="totalGeral" class="fs-5 fw-bold text-warning">R$ 0,00</span>
+          </div>
+
+          <!-- Responsável / Observações -->
+          <div class="row g-2">
             <div class="col-md-6">
-              <label class="form-label fw-semibold">Responsável pela Autorização <span class="text-danger">*</span></label>
-              <input name="responsavel" type="text" class="form-control"
-                     placeholder="Nome do responsável" required>
+              <label class="form-label fw-semibold">Responsável <span class="text-danger">*</span></label>
+              <input name="responsavel" type="text" class="form-control" placeholder="Nome do responsável" required>
             </div>
             <div class="col-md-6">
               <label class="form-label fw-semibold">Observações</label>
               <input name="observacoes" type="text" class="form-control" placeholder="Opcional">
             </div>
           </div>
+
           <div class="mt-3 d-flex gap-2">
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" id="btnSalvar" class="btn btn-primary">
               <i class="bi bi-check-circle me-1"></i>Salvar Autorização
             </button>
-            <button type="reset" class="btn btn-outline-secondary">
+            <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">
               <i class="bi bi-eraser me-1"></i>Limpar
             </button>
           </div>
@@ -161,292 +151,234 @@
 
 {% block scripts %}
 <script>
-// Calendário – preenche a data oculta no formato DD/MM/AAAA
+// ── Dados dos exames (carregados do servidor) ──────────────────────────────
+const EXAMES_DATA = {};
+document.querySelectorAll('#opcoesExame option').forEach(o => {
+  EXAMES_DATA[o.value] = {
+    valor: parseFloat(o.dataset.valor) || 0,
+    desc:  o.dataset.desc || '',
+    qtd:   parseInt(o.dataset.qtd) || 0,
+    texto: o.value + ' – ' + o.dataset.desc
+  };
+});
+const EXAMES_LISTA = Object.keys(EXAMES_DATA).sort((a,b) =>
+  EXAMES_DATA[a].desc.localeCompare(EXAMES_DATA[b].desc));
+
+// ── Data ───────────────────────────────────────────────────────────────────
 const datePicker = document.getElementById('datePicker');
 const dataAut    = document.getElementById('dataAut');
-
-// Define hoje como valor padrão
 (function(){
-  const hoje = new Date();
-  const y = hoje.getFullYear();
-  const m = String(hoje.getMonth()+1).padStart(2,'0');
-  const d = String(hoje.getDate()).padStart(2,'0');
-  datePicker.value = `${y}-${m}-${d}`;
-  dataAut.value    = `${d}/${m}/${y}`;
+  const h = new Date();
+  const y=h.getFullYear(), m=String(h.getMonth()+1).padStart(2,'0'), d=String(h.getDate()).padStart(2,'0');
+  datePicker.value=`${y}-${m}-${d}`; dataAut.value=`${d}/${m}/${y}`;
 })();
-
-datePicker.addEventListener('change', function(){
-  if(!this.value) return;
-  const [y,m,d] = this.value.split('-');
-  dataAut.value = `${d}/${m}/${y}`;
+datePicker.addEventListener('change',function(){
+  if(!this.value)return; const[y,m,d]=this.value.split('-'); dataAut.value=`${d}/${m}/${y}`;
 });
 
-const sel         = document.getElementById('selExame');
-const vu          = document.getElementById('vu');
-const qtde        = document.getElementById('qtde');
-const totalEl     = document.getElementById('total');
-const infoBox     = document.getElementById('infoBox');
-const infoDiv     = document.getElementById('infoExame');
-const alertaSaldo = document.getElementById('alertaSaldo');
-const alertaMsg   = document.getElementById('alertaSaldoMsg');
-const btnSalvar   = document.querySelector('#frmAut button[type=submit]');
-let saldoAtual    = 9999; // saldo disponível do exame selecionado
+// ── Gerenciador de linhas de exame ─────────────────────────────────────────
+let linhaId = 0;
+const tabela    = document.getElementById('tabelaExames');
+const btnAdd    = document.getElementById('btnAddExame');
+const btnSalvar = document.getElementById('btnSalvar');
+const alertaG   = document.getElementById('alertaGeral');
+const alertaGMsg= document.getElementById('alertaGeralMsg');
+const totalGeralEl = document.getElementById('totalGeral');
 
-function calcTotal(){
-  const v = parseFloat(vu.value)||0;
-  const q = parseInt(qtde.value)||1;
-  totalEl.value = 'R$ ' + (v*q).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+function criarLinha() {
+  linhaId++;
+  const id = linhaId;
+  const div = document.createElement('div');
+  div.className = 'linha-exame';
+  div.dataset.id = id;
+  div.innerHTML = `
+    <div class="row g-1 align-items-end">
+      <div class="col-12 col-md-5">
+        <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Buscar Exame</label>
+        <input type="text" class="form-control form-control-sm busca-exame" placeholder="Digite código ou nome..."
+               autocomplete="off" data-id="${id}">
+        <div class="lista-sugestoes border rounded bg-white shadow-sm" data-id="${id}"
+             style="display:none;position:absolute;z-index:200;max-height:200px;overflow-y:auto;width:350px;font-size:.82rem"></div>
+      </div>
+      <div class="col-12 col-md-3">
+        <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Exame Selecionado</label>
+        <input type="text" class="form-control form-control-sm desc-exame" readonly placeholder="—"
+               style="background:#f0f4ff;font-size:.78rem">
+        <input type="hidden" name="codigo_exame" class="cod-exame" data-id="${id}">
+        <input type="hidden" name="valor_unitario" class="vu-exame" data-id="${id}" value="0">
+      </div>
+      <div class="col-4 col-md-1">
+        <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Qtde</label>
+        <input type="number" name="quantidade_liberada" class="form-control form-control-sm qtde-exame"
+               value="1" min="1" data-id="${id}">
+      </div>
+      <div class="col-4 col-md-1">
+        <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Unit.</label>
+        <input type="text" class="form-control form-control-sm val-unit" readonly value="0,00"
+               style="font-size:.78rem">
+      </div>
+      <div class="col-4 col-md-1">
+        <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Total</label>
+        <input type="text" class="form-control form-control-sm total-linha" readonly value="R$ 0,00">
+      </div>
+      <div class="col-12 col-md-1 text-end">
+        <button type="button" class="btn btn-sm btn-outline-danger btn-remover w-100" data-id="${id}" title="Remover">
+          <i class="bi bi-trash"></i>
+        </button>
+      </div>
+    </div>
+    <div class="info-saldo mt-1" data-id="${id}" style="display:none;font-size:.75rem"></div>
+  `;
+  tabela.appendChild(div);
+  inicializarLinha(div, id);
+  atualizarBotaoRemover();
+  return div;
 }
 
-function verificarSaldo(){
-  const q = parseInt(qtde.value)||1;
-  const statusVal = document.querySelector('select[name=status]').value;
-  if(statusVal === 'CANCELADO'){ alertaSaldo.style.display='none'; btnSalvar.disabled=false; return; }
-  if(saldoAtual <= 0){
-    alertaMsg.textContent = '⛔ Saldo ESGOTADO! Este exame não possui mais unidades disponíveis no contrato.';
-    alertaSaldo.style.display='';
-    btnSalvar.disabled = true;
-  } else if(q > saldoAtual){
-    alertaMsg.textContent = `⚠️ Quantidade (${q}) excede o saldo disponível (${saldoAtual}). Reduza a quantidade.`;
-    alertaSaldo.style.display='';
-    btnSalvar.disabled = true;
-  } else {
-    alertaSaldo.style.display='none';
-    btnSalvar.disabled = false;
-  }
-}
+function inicializarLinha(div, id) {
+  const busca   = div.querySelector('.busca-exame');
+  const lista   = div.querySelector('.lista-sugestoes');
+  const desc    = div.querySelector('.desc-exame');
+  const cod     = div.querySelector('.cod-exame');
+  const vu      = div.querySelector('.vu-exame');
+  const valUnit = div.querySelector('.val-unit');
+  const qtde    = div.querySelector('.qtde-exame');
+  const totalEl = div.querySelector('.total-linha');
+  const infoEl  = div.querySelector('.info-saldo');
+  const btnRem  = div.querySelector('.btn-remover');
 
-sel.addEventListener('change', function(){
-  const cod = this.value;
-  if(!cod){
-    infoDiv.style.display='none';
-    alertaSaldo.style.display='none';
-    vu.value='0.00';
-    saldoAtual=9999;
-    btnSalvar.disabled=false;
-    calcTotal();
-    return;
+  function calcLinha() {
+    const v = parseFloat(vu.value)||0, q=parseInt(qtde.value)||1;
+    totalEl.value = 'R$ '+(v*q).toLocaleString('pt-BR',{minimumFractionDigits:2});
+    atualizarTotalGeral();
   }
-  // Pega preço e dados direto do HTML (instantâneo, sem API)
-  const opt   = this.options[this.selectedIndex];
-  const valor = parseFloat(opt.dataset.valor) || 0;
-  const qtdContratada = parseInt(opt.dataset.qtd) || 0;
-  const desc  = opt.dataset.desc || opt.text;
-  vu.value = valor.toFixed(2);
-  calcTotal();
 
-  // Busca saldo usado via API
-  fetch('/api/exame/'+cod)
-    .then(r=>r.json())
-    .then(d=>{
-      if(d.erro){ infoDiv.style.display='none'; return; }
-      saldoAtual = d.saldo;
-      const saldo = d.saldo;
-      const cls   = saldo <= 0 ? 'danger' : saldo <= 5 ? 'warning' : 'info';
-      infoBox.className = `alert alert-${cls} py-2 mb-0`;
-      infoBox.innerHTML = `<i class="bi bi-clipboard2-pulse me-1"></i><strong>${desc}</strong><br>
-        Qtde contratada: <b>${qtdContratada}</b> &nbsp;|&nbsp;
-        Usada: <b>${d.qtd_usada}</b> &nbsp;|&nbsp;
-        Saldo: <b class="${saldo<=0?'text-danger':saldo<=5?'text-warning':'text-success'}">${saldo}</b>
-        ${saldo<=0 ? ' <span class="badge bg-danger ms-1">ESGOTADO</span>' : saldo<=5 ? ' <span class="badge bg-warning text-dark ms-1">CRÍTICO</span>' : ''}`;
-      infoDiv.style.display='';
-      verificarSaldo();
-    })
-    .catch(()=>{
-      // Se API falhar, mostra info básica e permite salvar
-      saldoAtual = 9999;
-      infoBox.className = 'alert alert-info py-2 mb-0';
-      infoBox.innerHTML = `<i class="bi bi-clipboard2-pulse me-1"></i><strong>${desc}</strong> — R$ ${valor.toFixed(2).replace('.',',')}`;
-      infoDiv.style.display='';
+  function selecionarExame(codigo) {
+    const ex = EXAMES_DATA[codigo];
+    if(!ex) return;
+    cod.value   = codigo;
+    vu.value    = ex.valor;
+    desc.value  = ex.desc;
+    busca.value = ex.texto;
+    valUnit.value = ex.valor.toLocaleString('pt-BR',{minimumFractionDigits:2});
+    calcLinha();
+    lista.style.display='none';
+    // Busca saldo via API
+    fetch('/api/exame/'+codigo).then(r=>r.json()).then(d=>{
+      if(d.erro){infoEl.style.display='none';return;}
+      const s=d.saldo;
+      const cls=s<=0?'text-danger fw-bold':s<=5?'text-warning fw-bold':'text-success';
+      infoEl.innerHTML=`<i class="bi bi-info-circle me-1"></i>${ex.desc} — Contratado: <b>${ex.qtd}</b> | Usado: <b>${d.qtd_usada}</b> | Saldo: <b class="${cls}">${s}</b>${s<=0?' <span class="badge bg-danger">ESGOTADO</span>':s<=5?' <span class="badge bg-warning text-dark">CRÍTICO</span>':''}`;
+      infoEl.style.display='';
+      verificarTodos();
+    }).catch(()=>{ infoEl.style.display='none'; verificarTodos(); });
+  }
+
+  busca.addEventListener('input', function() {
+    const termo = this.value.toLowerCase().trim();
+    if(!termo){ lista.style.display='none'; return; }
+    const matches = EXAMES_LISTA.filter(k =>
+      k.toLowerCase().includes(termo) || EXAMES_DATA[k].desc.toLowerCase().includes(termo)
+    ).slice(0,15);
+    if(!matches.length){ lista.style.display='none'; return; }
+    lista.innerHTML = matches.map(k=>
+      `<div class="px-2 py-1 item-sugestao" data-cod="${k}" style="cursor:pointer;border-bottom:1px solid #eee">
+        <span class="text-muted" style="font-size:.75rem">${k}</span> ${EXAMES_DATA[k].desc}
+       </div>`).join('');
+    lista.style.display='';
+    lista.querySelectorAll('.item-sugestao').forEach(item=>{
+      item.addEventListener('mousedown',e=>{ e.preventDefault(); selecionarExame(item.dataset.cod); });
+      item.addEventListener('mouseover',()=>item.style.background='#eef3ff');
+      item.addEventListener('mouseout', ()=>item.style.background='');
     });
-});
-
-qtde.addEventListener('input', function(){ calcTotal(); verificarSaldo(); });
-document.querySelector('select[name=status]').addEventListener('change', verificarSaldo);
-
-// ── Filtro de busca de exames ──────────────────────────────────────────────
-const filtroInput   = document.getElementById('filtroExame');
-const btnLimpar     = document.getElementById('btnLimparFiltro');
-const contador      = document.getElementById('contadorExames');
-const todasOpcoes   = Array.from(sel.options); // guarda todas as opções originais
-
-function filtrarExames() {
-  const termo = filtroInput.value.toLowerCase().trim();
-  // Remove todas as opções exceto a primeira (placeholder)
-  while (sel.options.length > 1) sel.remove(1);
-  let visiveis = 0;
-  todasOpcoes.forEach(opt => {
-    if (opt.value === '') return; // pula o placeholder
-    const codigo = opt.value.toLowerCase();
-    const desc   = (opt.dataset.desc || '').toLowerCase();
-    if (!termo || codigo.includes(termo) || desc.includes(termo)) {
-      sel.add(opt.cloneNode(true));
-      visiveis++;
-    }
   });
-  if (termo) {
-    contador.textContent = `${visiveis} procedimento(s) encontrado(s) de ${todasOpcoes.length - 1}`;
-    contador.className = visiveis === 0 ? 'form-text text-danger mb-1' : 'form-text text-success mb-1';
-  } else {
-    contador.textContent = `${todasOpcoes.length - 1} procedimentos disponíveis`;
-    contador.className = 'form-text text-muted mb-1';
-  }
-  // Reseta seleção se o exame atual sumiu do filtro
-  if (sel.value === '') {
-    vu.value = '0.00';
-    calcTotal();
-    infoDiv.style.display = 'none';
-    alertaSaldo.style.display = 'none';
-    saldoAtual = 9999;
-    btnSalvar.disabled = false;
-  }
+
+  busca.addEventListener('blur',()=>setTimeout(()=>lista.style.display='none',150));
+  busca.addEventListener('keydown',function(e){
+    if(e.key==='Escape'){ lista.style.display='none'; }
+  });
+
+  qtde.addEventListener('input', ()=>{ calcLinha(); verificarTodos(); });
+
+  btnRem.addEventListener('click', function() {
+    div.remove();
+    atualizarBotaoRemover();
+    atualizarTotalGeral();
+    verificarTodos();
+  });
 }
 
-// Inicializa contador
-filtrarExames();
-
-filtroInput.addEventListener('input', filtrarExames);
-
-btnLimpar.addEventListener('click', function() {
-  filtroInput.value = '';
-  filtrarExames();
-  filtroInput.focus();
-});
-
-// Ao pressionar Enter no filtro, foca no select
-filtroInput.addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') { e.preventDefault(); sel.focus(); }
-});
-
-// ── Validação CPF / CNS ────────────────────────────────────────────────────
-const tipoDoc    = document.getElementById('tipoDoc');
-const docInput   = document.getElementById('docInput');
-const docIcon    = document.getElementById('docIcon');
-const docFeedback= document.getElementById('docFeedback');
-
-function validarCPF(cpf) {
-  cpf = cpf.replace(/\D/g,'');
-  if (cpf.length !== 11) return false;
-  if (/^(\d)\1+$/.test(cpf)) return false; // todos dígitos iguais
-  let soma = 0;
-  for (let i = 0; i < 9; i++) soma += parseInt(cpf[i]) * (10 - i);
-  let r = (soma * 10) % 11;
-  if (r === 10 || r === 11) r = 0;
-  if (r !== parseInt(cpf[9])) return false;
-  soma = 0;
-  for (let i = 0; i < 10; i++) soma += parseInt(cpf[i]) * (11 - i);
-  r = (soma * 10) % 11;
-  if (r === 10 || r === 11) r = 0;
-  return r === parseInt(cpf[10]);
+function atualizarBotaoRemover() {
+  const linhas = tabela.querySelectorAll('.linha-exame');
+  linhas.forEach((l,i)=>{
+    l.querySelector('.btn-remover').style.display = linhas.length===1 ? 'none' : '';
+  });
 }
 
-function validarCNS(cns) {
-  cns = cns.replace(/\D/g,'');
-  if (cns.length !== 15) return false;
-  // CNS deve começar com 1, 2 ou 7, 8, 9
-  if (!/^[1278]/.test(cns)) return false;
-  // Algoritmo de validação do CNS
-  function mod11(s){
-    let soma = 0;
-    for(let i=0;i<s.length;i++) soma += parseInt(s[i])*(s.length+1-i);
-    return soma % 11;
-  }
-  if (cns[0]==='7'||cns[0]==='8'||cns[0]==='9'){
-    return mod11(cns) === 0;
-  } else {
-    const pis = cns.substring(0,11);
-    let soma = 0;
-    for(let i=0;i<11;i++) soma += parseInt(pis[i])*(15-i);
-    let dsc = 0, resto = soma % 11;
-    let resultado = resto !== 0 ? 11 - resto : 0;
-    let inicioSns = resultado === 10
-      ? pis + '001' + String(11 - ((soma + 3*1 + 1*2 + 0*1) % 11)).padStart(1,'0')
-      : pis + '000' + String(resultado).padStart(1,'0');
-    return cns === inicioSns.substring(0,15);
-  }
+function atualizarTotalGeral() {
+  let total = 0;
+  tabela.querySelectorAll('.linha-exame').forEach(l=>{
+    const v = parseFloat(l.querySelector('.vu-exame').value)||0;
+    const q = parseInt(l.querySelector('.qtde-exame').value)||1;
+    total += v*q;
+  });
+  totalGeralEl.textContent = 'R$ '+total.toLocaleString('pt-BR',{minimumFractionDigits:2});
 }
 
-function mascaraCPF(v){
-  v = v.replace(/\D/g,'').substring(0,11);
-  v = v.replace(/(\d{3})(\d)/,'$1.$2');
-  v = v.replace(/(\d{3})(\d)/,'$1.$2');
-  v = v.replace(/(\d{3})(\d{1,2})$/,'$1-$2');
-  return v;
+function verificarTodos() {
+  const statusVal = document.querySelector('select[name=status]').value;
+  if(statusVal==='CANCELADO'){ alertaG.style.display='none'; btnSalvar.disabled=false; return; }
+  // Verifica se todas as linhas têm exame selecionado
+  const linhas = tabela.querySelectorAll('.linha-exame');
+  let erros = [];
+  linhas.forEach(l=>{
+    const cod = l.querySelector('.cod-exame').value;
+    if(!cod) erros.push('Selecione um exame em todas as linhas.');
+  });
+  if(erros.length){ alertaGMsg.textContent=erros[0]; alertaG.style.display=''; btnSalvar.disabled=true; return; }
+  alertaG.style.display='none'; btnSalvar.disabled=false;
 }
 
-function mascaraCNS(v){
-  v = v.replace(/\D/g,'').substring(0,15);
-  v = v.replace(/(\d{3})(\d)/,'$1 $2');
-  v = v.replace(/(\d{4})(\d)/,'$1 $2');
-  v = v.replace(/(\d{4})(\d)/,'$1 $2');
-  return v;
-}
+btnAdd.addEventListener('click', ()=>criarLinha());
+document.querySelector('select[name=status]').addEventListener('change', verificarTodos);
 
-function setStatus(ok, msg, vazio){
-  if(vazio){
-    docIcon.className = 'bi bi-dash-circle text-secondary';
-    docFeedback.textContent = '';
-    docFeedback.className = 'form-text';
-    return;
-  }
-  if(ok){
-    docIcon.className = 'bi bi-check-circle-fill text-success';
-    docFeedback.textContent = msg;
-    docFeedback.className = 'form-text text-success fw-semibold';
-  } else {
-    docIcon.className = 'bi bi-x-circle-fill text-danger';
-    docFeedback.textContent = msg;
-    docFeedback.className = 'form-text text-danger fw-semibold';
-  }
-}
+// Inicia com uma linha
+criarLinha();
 
-tipoDoc.addEventListener('change', function(){
-  docInput.value = '';
-  setStatus(false,'',true);
-  if(this.value==='CPF'){
-    docInput.placeholder='000.000.000-00';
-    docInput.maxLength=14;
-  } else {
-    docInput.placeholder='000 0000 0000 0000';
-    docInput.maxLength=18;
-  }
-});
-
-docInput.addEventListener('input', function(){
-  let v = this.value;
-  const tipo = tipoDoc.value;
-  if(tipo==='CPF'){
-    v = mascaraCPF(v);
-    this.value = v;
-    const digits = v.replace(/\D/g,'');
-    if(digits.length===0){ setStatus(false,'',true); return; }
-    if(digits.length<11){ setStatus(false,'Continue digitando… ('+digits.length+'/11)',false); return; }
-    if(validarCPF(v)) setStatus(true,'✔ CPF válido',false);
-    else setStatus(false,'✘ CPF inválido — verifique o número',false);
-  } else {
-    v = mascaraCNS(v);
-    this.value = v;
-    const digits = v.replace(/\D/g,'');
-    if(digits.length===0){ setStatus(false,'',true); return; }
-    if(digits.length<15){ setStatus(false,'Continue digitando… ('+digits.length+'/15)',false); return; }
-    if(validarCNS(v)) setStatus(true,'✔ CNS válido',false);
-    else setStatus(false,'✘ CNS inválido — verifique o número',false);
-  }
-});
-
-// Bloqueia submit se doc preenchido mas inválido
+// ── Validação no submit ────────────────────────────────────────────────────
 document.getElementById('frmAut').addEventListener('submit', function(e){
+  const linhas = tabela.querySelectorAll('.linha-exame');
+  let vazio = false;
+  linhas.forEach(l=>{ if(!l.querySelector('.cod-exame').value) vazio=true; });
+  if(vazio){ e.preventDefault(); alertaGMsg.textContent='Selecione o exame em todas as linhas antes de salvar.'; alertaG.style.display=''; return; }
+  // Valida doc
   const v = docInput.value.replace(/\D/g,'');
-  if(v.length === 0) return; // campo vazio = ok (não obrigatório)
-  const tipo = tipoDoc.value;
-  const valido = tipo==='CPF' ? validarCPF(docInput.value) : validarCNS(docInput.value);
-  if(!valido){
-    e.preventDefault();
-    docInput.focus();
-    setStatus(false,'✘ '+(tipo==='CPF'?'CPF':'CNS')+' inválido — corrija antes de salvar',false);
-    docInput.classList.add('is-invalid');
-    setTimeout(()=>docInput.classList.remove('is-invalid'),3000);
+  if(v.length>0){
+    const tipo=tipoDoc.value;
+    const valido=tipo==='CPF'?validarCPF(docInput.value):validarCNS(docInput.value);
+    if(!valido){ e.preventDefault(); docInput.focus(); return; }
   }
 });
+
+function resetForm(){
+  document.getElementById('frmAut').reset();
+  tabela.innerHTML=''; linhaId=0; criarLinha();
+  atualizarTotalGeral();
+  alertaG.style.display='none';
+  const h=new Date();
+  const y=h.getFullYear(),m=String(h.getMonth()+1).padStart(2,'0'),d=String(h.getDate()).padStart(2,'0');
+  datePicker.value=`${y}-${m}-${d}`; dataAut.value=`${d}/${m}/${y}`;
+}
+
+// ── CPF / CNS ──────────────────────────────────────────────────────────────
+const tipoDoc=document.getElementById('tipoDoc'),docInput=document.getElementById('docInput');
+const docIcon=document.getElementById('docIcon'),docFeedback=document.getElementById('docFeedback');
+function validarCPF(cpf){cpf=cpf.replace(/\D/g,'');if(cpf.length!==11)return false;if(/^(\d)\1+$/.test(cpf))return false;let s=0;for(let i=0;i<9;i++)s+=parseInt(cpf[i])*(10-i);let r=(s*10)%11;if(r===10||r===11)r=0;if(r!==parseInt(cpf[9]))return false;s=0;for(let i=0;i<10;i++)s+=parseInt(cpf[i])*(11-i);r=(s*10)%11;if(r===10||r===11)r=0;return r===parseInt(cpf[10]);}
+function validarCNS(cns){cns=cns.replace(/\D/g,'');if(cns.length!==15)return false;if(!/^[1278]/.test(cns))return false;function mod11(s){let soma=0;for(let i=0;i<s.length;i++)soma+=parseInt(s[i])*(s.length+1-i);return soma%11;}if(cns[0]==='7'||cns[0]==='8'||cns[0]==='9'){return mod11(cns)===0;}else{const p=cns.substring(0,11);let soma=0;for(let i=0;i<11;i++)soma+=parseInt(p[i])*(15-i);let res=soma%11!==0?11-soma%11:0;let ini=res===10?p+'001'+String(11-((soma+3+2)%11)):p+'000'+String(res);return cns===ini.substring(0,15);}}
+function mascaraCPF(v){v=v.replace(/\D/g,'').substring(0,11);v=v.replace(/(\d{3})(\d)/,'$1.$2');v=v.replace(/(\d{3})(\d)/,'$1.$2');v=v.replace(/(\d{3})(\d{1,2})$/,'$1-$2');return v;}
+function mascaraCNS(v){v=v.replace(/\D/g,'').substring(0,15);v=v.replace(/(\d{3})(\d)/,'$1 $2');v=v.replace(/(\d{4})(\d)/,'$1 $2');v=v.replace(/(\d{4})(\d)/,'$1 $2');return v;}
+function setDocStatus(ok,msg,vazio){if(vazio){docIcon.className='bi bi-dash-circle text-secondary';docFeedback.textContent='';return;}if(ok){docIcon.className='bi bi-check-circle-fill text-success';docFeedback.textContent=msg;docFeedback.className='form-text text-success fw-semibold';}else{docIcon.className='bi bi-x-circle-fill text-danger';docFeedback.textContent=msg;docFeedback.className='form-text text-danger fw-semibold';}}
+tipoDoc.addEventListener('change',function(){docInput.value='';setDocStatus(false,'',true);docInput.placeholder=this.value==='CPF'?'000.000.000-00':'000 0000 0000 0000';docInput.maxLength=this.value==='CPF'?14:18;});
+docInput.addEventListener('input',function(){let v=this.value;const t=tipoDoc.value;if(t==='CPF'){v=mascaraCPF(v);this.value=v;const d=v.replace(/\D/g,'');if(!d.length){setDocStatus(false,'',true);return;}if(d.length<11){setDocStatus(false,'Digitando… ('+d.length+'/11)',false);return;}setDocStatus(validarCPF(v),validarCPF(v)?'✔ CPF válido':'✘ CPF inválido',false);}else{v=mascaraCNS(v);this.value=v;const d=v.replace(/\D/g,'');if(!d.length){setDocStatus(false,'',true);return;}if(d.length<15){setDocStatus(false,'Digitando… ('+d.length+'/15)',false);return;}setDocStatus(validarCNS(v),validarCNS(v)?'✔ CNS válido':'✘ CNS inválido',false);}});
 </script>
 {% endblock %}
