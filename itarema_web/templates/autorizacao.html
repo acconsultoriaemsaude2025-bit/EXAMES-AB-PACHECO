@@ -59,7 +59,18 @@
             <!-- Linha 3 – Exame -->
             <div class="col-12">
               <label class="form-label fw-semibold">Exame <span class="text-danger">*</span></label>
-              <select name="codigo_exame" id="selExame" class="form-select" required>
+              <!-- Filtro de busca -->
+              <div class="input-group mb-1">
+                <span class="input-group-text bg-white"><i class="bi bi-search text-secondary"></i></span>
+                <input type="text" id="filtroExame" class="form-control"
+                       placeholder="Buscar por código ou descrição do exame..."
+                       autocomplete="off">
+                <button type="button" class="btn btn-outline-secondary" id="btnLimparFiltro" title="Limpar busca">
+                  <i class="bi bi-x-lg"></i>
+                </button>
+              </div>
+              <div id="contadorExames" class="form-text mb-1" style="font-size:.75rem"></div>
+              <select name="codigo_exame" id="selExame" class="form-select" required size="1">
                 <option value="">— Selecione o exame —</option>
                 {% for ex in exames %}
                 <option value="{{ ex.codigo }}"
@@ -259,6 +270,60 @@ sel.addEventListener('change', function(){
 
 qtde.addEventListener('input', function(){ calcTotal(); verificarSaldo(); });
 document.querySelector('select[name=status]').addEventListener('change', verificarSaldo);
+
+// ── Filtro de busca de exames ──────────────────────────────────────────────
+const filtroInput   = document.getElementById('filtroExame');
+const btnLimpar     = document.getElementById('btnLimparFiltro');
+const contador      = document.getElementById('contadorExames');
+const todasOpcoes   = Array.from(sel.options); // guarda todas as opções originais
+
+function filtrarExames() {
+  const termo = filtroInput.value.toLowerCase().trim();
+  // Remove todas as opções exceto a primeira (placeholder)
+  while (sel.options.length > 1) sel.remove(1);
+  let visiveis = 0;
+  todasOpcoes.forEach(opt => {
+    if (opt.value === '') return; // pula o placeholder
+    const codigo = opt.value.toLowerCase();
+    const desc   = (opt.dataset.desc || '').toLowerCase();
+    if (!termo || codigo.includes(termo) || desc.includes(termo)) {
+      sel.add(opt.cloneNode(true));
+      visiveis++;
+    }
+  });
+  if (termo) {
+    contador.textContent = `${visiveis} procedimento(s) encontrado(s) de ${todasOpcoes.length - 1}`;
+    contador.className = visiveis === 0 ? 'form-text text-danger mb-1' : 'form-text text-success mb-1';
+  } else {
+    contador.textContent = `${todasOpcoes.length - 1} procedimentos disponíveis`;
+    contador.className = 'form-text text-muted mb-1';
+  }
+  // Reseta seleção se o exame atual sumiu do filtro
+  if (sel.value === '') {
+    vu.value = '0.00';
+    calcTotal();
+    infoDiv.style.display = 'none';
+    alertaSaldo.style.display = 'none';
+    saldoAtual = 9999;
+    btnSalvar.disabled = false;
+  }
+}
+
+// Inicializa contador
+filtrarExames();
+
+filtroInput.addEventListener('input', filtrarExames);
+
+btnLimpar.addEventListener('click', function() {
+  filtroInput.value = '';
+  filtrarExames();
+  filtroInput.focus();
+});
+
+// Ao pressionar Enter no filtro, foca no select
+filtroInput.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') { e.preventDefault(); sel.focus(); }
+});
 
 // ── Validação CPF / CNS ────────────────────────────────────────────────────
 const tipoDoc    = document.getElementById('tipoDoc');
