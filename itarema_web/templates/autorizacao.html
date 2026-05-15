@@ -20,8 +20,11 @@
             </div>
             <div class="col-md-4">
               <label class="form-label fw-semibold">Data <span class="text-danger">*</span></label>
-              <input name="data_autorizacao" id="dataAut" type="text" class="form-control"
-                     placeholder="DD/MM/AAAA" value="{{ hoje_str }}" required>
+              <div class="input-group">
+                <input name="data_autorizacao" id="dataAut" type="text" class="form-control"
+                       placeholder="DD/MM/AAAA" value="{{ hoje_str }}" required autocomplete="off">
+                <input type="date" id="datePicker" class="form-control" style="max-width:46px;padding:6px 4px;cursor:pointer" title="Selecionar data">
+              </div>
             </div>
             <div class="col-md-4">
               <label class="form-label fw-semibold">Status</label>
@@ -127,6 +130,30 @@
 
 {% block scripts %}
 <script>
+// Calendário ↔ campo de texto
+const dataAut    = document.getElementById('dataAut');
+const datePicker = document.getElementById('datePicker');
+
+// Preenche o calendário com a data atual ao carregar
+(function(){
+  const parts = dataAut.value.split('/');
+  if(parts.length === 3) datePicker.value = `${parts[2]}-${parts[1]}-${parts[0]}`;
+})();
+
+// Ao selecionar no calendário → preenche o campo texto no formato DD/MM/AAAA
+datePicker.addEventListener('change', function(){
+  if(!this.value) return;
+  const [y,m,d] = this.value.split('-');
+  dataAut.value = `${d}/${m}/${y}`;
+});
+
+// Ao digitar no campo texto → atualiza o calendário
+dataAut.addEventListener('change', function(){
+  const parts = this.value.split('/');
+  if(parts.length === 3 && parts[2].length === 4)
+    datePicker.value = `${parts[2]}-${parts[1]}-${parts[0]}`;
+});
+
 const sel = document.getElementById('selExame');
 const vu  = document.getElementById('vu');
 const qtde = document.getElementById('qtde');
