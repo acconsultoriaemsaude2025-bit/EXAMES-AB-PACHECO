@@ -1,0 +1,83 @@
+===========================================================================
+  SISTEMA DE CONTROLE DE EXAMES LABORATORIAIS – ITAREMA/CE
+  Aplicação Web Flask – Contrato Nº 004/2023-SMS-02
+  Como publicar na internet (acesso de qualquer local)
+===========================================================================
+
+A pasta "itarema_web" contém o sistema completo. Para colocar no ar:
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ OPÇÃO 1 – RENDER.COM (GRATUITO, RECOMENDADO PARA INÍCIO)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+PASSO 1 – Criar conta no GitHub (gratuito)
+  → Acesse: https://github.com  → Clique "Sign up"
+
+PASSO 2 – Fazer upload da pasta itarema_web
+  a) Crie um novo repositório no GitHub (ex: "itarema-exames")
+  b) Arraste a pasta inteira para o repositório (ou use GitHub Desktop)
+  c) Clique "Commit changes"
+
+PASSO 3 – Publicar no Render.com
+  a) Acesse: https://render.com  → "Sign up" (pode usar conta Google)
+  b) Clique "New +" → "Web Service"
+  c) Conecte sua conta GitHub e selecione o repositório
+  d) Preencha:
+       Name: itarema-exames
+       Environment: Python 3
+       Build Command: pip install -r requirements.txt
+       Start Command: gunicorn app:app --bind 0.0.0.0:$PORT --workers 2
+  e) Em "Environment Variables", adicione:
+       DB_PATH = /opt/render/project/src/itarema_web.db
+  f) Clique "Create Web Service"
+  g) Aguarde ~3 minutos → o sistema estará no ar com um link tipo:
+       https://itarema-exames.onrender.com
+
+IMPORTANTE sobre o banco de dados no Render GRATUITO:
+  - O plano gratuito apaga o banco a cada re-deploy.
+  - Para guardar os dados permanentemente, adicione um "Disk":
+    → Na página do serviço, clique "Disks" → "Add Disk"
+    → Mount Path: /data   Tamanho: 1 GB
+    → Altere DB_PATH para: /data/itarema_web.db
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ OPÇÃO 2 – RODAR NA REDE LOCAL DA SECRETARIA (SEM INTERNET)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Instalar no PC da secretaria e acessar de qualquer computador da rede.
+
+PASSO 1 – Instalar Python 3.11+ no PC servidor
+  → https://www.python.org/downloads/
+
+PASSO 2 – Abrir o Prompt de Comando (CMD) na pasta itarema_web:
+  cd "C:\EMPRESA DARILO\CLIENTES\ITAREMA PPI\...\itarema_web"
+  pip install flask openpyxl gunicorn
+
+PASSO 3 – Iniciar o servidor:
+  python app.py
+
+PASSO 4 – Acessar no navegador:
+  → No próprio PC:        http://localhost:5000
+  → Em outros PCs da rede: http://[IP-DO-SERVIDOR]:5000
+    (ex: http://192.168.1.10:5000)
+
+Para descobrir o IP do servidor: abra CMD e digite "ipconfig"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ FUNCIONALIDADES DO SISTEMA
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ Dashboard com gráficos de gasto mensal e saldo do contrato
+✅ Nova Autorização – cadastro completo (paciente, exame, responsável)
+✅ Histórico com filtros por paciente, exame, mês e status
+✅ Editar / Excluir autorizações
+✅ Saldo por Exame – controle de quantidade contratada x utilizada
+✅ Relatório Mensal com gráfico e tabela acumulada
+✅ Catálogo de Exames – 77 exames do contrato pré-cadastrados
+✅ Exportar Excel – download das autorizações do ano
+✅ Acesso simultâneo para 2 a 5 usuários
+
+Contrato base: Nº 004/2023-SMS-02 | A B PACHECO ME | R$ 351.247,00
+77 exames pré-cadastrados com códigos SIGTAP, valores e quantidades
+
+===========================================================================

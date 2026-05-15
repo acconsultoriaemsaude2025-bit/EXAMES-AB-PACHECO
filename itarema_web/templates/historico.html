@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Histórico{% endblock %}
+{% block icon %}list-ul{% endblock %}
+{% block page_title %}Histórico de Autorizações{% endblock %}
+
+{% block content %}
+<!-- Filtros -->
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form class="row g-2 align-items-end" method="get">
+      <div class="col-md-3">
+        <label class="form-label mb-1">Paciente</label>
+        <input name="paciente" type="text" class="form-control form-control-sm"
+               value="{{ filtros.paciente }}" placeholder="Buscar paciente…">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label mb-1">Exame</label>
+        <input name="exame" type="text" class="form-control form-control-sm"
+               value="{{ filtros.exame }}" placeholder="Código ou nome…">
+      </div>
+      <div class="col-md-2">
+        <label class="form-label mb-1">Mês</label>
+        <select name="mes" class="form-select form-select-sm">
+          <option value="">Todos</option>
+          {% for n, nome in [('01','Janeiro'),('02','Fevereiro'),('03','Março'),('04','Abril'),
+            ('05','Maio'),('06','Junho'),('07','Julho'),('08','Agosto'),
+            ('09','Setembro'),('10','Outubro'),('11','Novembro'),('12','Dezembro')] %}
+          <option value="{{ n }}" {% if filtros.mes==n %}selected{% endif %}>{{ nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label mb-1">Status</label>
+        <select name="status" class="form-select form-select-sm">
+          <option value="">Todos</option>
+          {% for st in ['AUTORIZADO','PENDENTE','REALIZADO','CANCELADO'] %}
+          <option {% if filtros.status==st %}selected{% endif %}>{{ st }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-3 d-flex gap-2">
+        <button class="btn btn-primary btn-sm flex-grow-1"><i class="bi bi-search me-1"></i>Filtrar</button>
+        <a href="{{ url_for('historico') }}" class="btn btn-outline-secondary btn-sm">Limpar</a>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Tabela -->
+<div class="card">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-table me-2"></i>{{ rows|length }} registro(s) | Total: <strong>{{ fmt_brl(total_v) }}</strong></span>
+    <a href="{{ url_for('autorizacao') }}" class="btn btn-primary btn-sm">
+      <i class="bi bi-plus"></i> Nova Autorização
+    </a>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0">
+      <thead>
+        <tr>
+          <th>ID</th><th>Data</th><th>Paciente</th><th>Exame</th>
+          <th>Qtde</th><th class="text-end">Val.Unit</th><th class="text-end">Val.Total</th>
+          <th>Resp.</th><th>Status</th><th>Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td class="text-muted">{{ r.id }}</td>
+          <td>{{ fmt_data(r.data_autorizacao) }}</td>
+          <td>{{ r.nome_paciente }}</td>
+          <td>
+            <span class="text-muted" style="font-size:.78rem">{{ r.codigo_exame }}</span><br>
+            {{ r.descricao_exame or '' }}
+          </td>
+          <td class="text-center">{{ r.quantidade_liberada }}</td>
+          <td class="text-end">{{ fmt_brl(r.valor_unitario) }}</td>
+          <td class="text-end fw-semibold">{{ fmt_brl(r.valor_total) }}</td>
+          <td>{{ r.responsavel or '' }}</td>
+          <td>
+            {% set st = r.status %}
+            {% if st == 'AUTORIZADO' %}<span class="badge bg-primary">{{ st }}</span>
+            {% elif st == 'REALIZADO' %}<span class="badge bg-success">{{ st }}</span>
+            {% elif st == 'PENDENTE' %}<span class="badge bg-warning text-dark">{{ st }}</span>
+            {% else %}<span class="badge bg-danger">{{ st }}</span>{% endif %}
+          </td>
+          <td>
+            <a href="{{ url_for('editar_aut', id=r.id) }}" class="btn btn-xs btn-outline-primary btn-sm py-0 px-1" title="Editar">
+              <i class="bi bi-pencil"></i>
+            </a>
+            <form method="post" action="{{ url_for('excluir_aut', id=r.id) }}" style="display:inline"
+                  onsubmit="return confirm('Excluir autorização #{{ r.id }}?')">
+              <button class="btn btn-xs btn-outline-danger btn-sm py-0 px-1" title="Excluir">
+                <i class="bi bi-trash"></i>
+              </button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" class="text-center text-muted py-4">Nenhuma autorização encontrada.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

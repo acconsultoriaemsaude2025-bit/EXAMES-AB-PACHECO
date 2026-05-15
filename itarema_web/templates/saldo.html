@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Saldo por Exame{% endblock %}
+{% block icon %}bar-chart-line{% endblock %}
+{% block page_title %}Saldo por Exame – Contrato {{ CONTRATO_NUM }}{% endblock %}
+
+{% block content %}
+<div class="card">
+  <div class="card-header bg-white d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-table me-2"></i>{{ rows|length }} exames no contrato</span>
+    <div>
+      <span class="badge bg-danger me-1">Zerado/Excedido</span>
+      <span class="badge bg-warning text-dark me-1">≤ 10%</span>
+      <span class="badge bg-success">Normal</span>
+    </div>
+  </div>
+  <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0" id="tblSaldo">
+      <thead>
+        <tr>
+          <th>Código</th><th>Descrição</th><th>Tipo</th>
+          <th class="text-center">Contratado</th>
+          <th class="text-center">Utilizado</th>
+          <th class="text-center">Saldo</th>
+          <th class="text-end">Val.Unit</th>
+          <th class="text-end">Valor Contratado</th>
+          <th class="text-end">Valor Utilizado</th>
+          <th style="width:120px">Uso %</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        {% set saldo = r.quantidade_contratada - r.usada %}
+        {% set pct = (r.usada / r.quantidade_contratada * 100) if r.quantidade_contratada > 0 else 0 %}
+        {% set cor = 'danger' if saldo <= 0 else ('warning' if pct >= 90 else 'success') %}
+        <tr>
+          <td><code>{{ r.codigo }}</code></td>
+          <td>{{ r.descricao }}</td>
+          <td><span class="badge bg-secondary">{{ r.tipo }}</span></td>
+          <td class="text-center">{{ r.quantidade_contratada }}</td>
+          <td class="text-center">{{ r.usada }}</td>
+          <td class="text-center fw-bold text-{{ cor }}">{{ saldo }}</td>
+          <td class="text-end">{{ fmt_brl(r.valor_unitario) }}</td>
+          <td class="text-end">{{ fmt_brl(r.valor_unitario * r.quantidade_contratada) }}</td>
+          <td class="text-end">{{ fmt_brl(r.valor_unitario * r.usada) }}</td>
+          <td>
+            <div class="progress" style="height:14px;border-radius:7px">
+              <div class="progress-bar bg-{{ cor }}" style="width:{{ [pct,100]|min }}%" title="{{ '%.1f'|format(pct) }}%"></div>
+            </div>
+            <div style="font-size:.72rem;color:#888;text-align:right">{{ "%.1f"|format(pct) }}%</div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Ordenação de coluna ao clicar no cabeçalho
+document.querySelectorAll('#tblSaldo thead th').forEach((th, i) => {
+  th.style.cursor = 'pointer';
+  th.addEventListener('click', () => {
+    const tbody = th.closest('table').querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const asc = th.dataset.asc !== 'true';
+    th.dataset.asc = asc;
+    rows.sort((a, b) => {
+      const av = a.cells[i].innerText.trim();
+      const bv = b.cells[i].innerText.trim();
+      const an = parseFloat(av.replace(/[^\d.,-]/g,'').replace(',','.'));
+      const bn = parseFloat(bv.replace(/[^\d.,-]/g,'').replace(',','.'));
+      return isNaN(an) ? av.localeCompare(bv) * (asc?1:-1) : (an-bn) * (asc?1:-1);
+    });
+    rows.forEach(r => tbody.appendChild(r));
+  });
+});
+</script>
+{% endblock %}
