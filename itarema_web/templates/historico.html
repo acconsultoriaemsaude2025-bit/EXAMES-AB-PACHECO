@@ -85,21 +85,23 @@
             {% else %}<span class="badge bg-danger">{{ st }}</span>{% endif %}
           </td>
           <td>
-            {% set eh_dono = (r.criado_por_id == session.usuario_id or r.criado_por_id is none) %}
-            {% set eh_admin = session.usuario_perfil == 'admin' %}
+            {% set uid_criador = r.criado_por_id | int if r.criado_por_id is not none else -1 %}
+            {% set eh_dono  = (r.criado_por_id is none) or (uid_criador == uid_atual) %}
+            {% set eh_admin = perfil_atual == 'admin' %}
             {% if eh_dono or eh_admin %}
-            <a href="{{ url_for('editar_aut', id=r.id) }}" class="btn btn-xs btn-outline-primary btn-sm py-0 px-1" title="Editar">
+            <a href="{{ url_for('editar_aut', id=r.id) }}"
+               class="btn btn-xs btn-outline-primary btn-sm py-0 px-1" title="Editar">
               <i class="bi bi-pencil"></i>
             </a>
             <form method="post" action="{{ url_for('excluir_aut', id=r.id) }}" style="display:inline"
-                  onsubmit="return confirm('Excluir autorização #{{ r.id }}?')">
+                  onsubmit="return confirm('Excluir autorização #{{ r.id }} de {{ r.nome_paciente }}?')">
               <button class="btn btn-xs btn-outline-danger btn-sm py-0 px-1" title="Excluir">
                 <i class="bi bi-trash"></i>
               </button>
             </form>
             {% else %}
-            <span class="text-muted" style="font-size:.75rem" title="Criado por {{ r.criado_por_nome or 'outro usuário' }}">
-              <i class="bi bi-lock text-secondary"></i>
+            <span title="Criado por {{ r.criado_por_nome or 'outro usuário' }} — sem permissão para excluir">
+              <i class="bi bi-lock-fill text-secondary"></i>
             </span>
             {% endif %}
           </td>
