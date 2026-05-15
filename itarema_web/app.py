@@ -162,6 +162,11 @@ def init_db():
         senha_hash = hashlib.sha256("admin123".encode()).hexdigest()
         conn.execute("INSERT INTO usuarios(nome,login,senha_hash,perfil,criado_em) VALUES(?,?,?,?,?)",
                      ("Administrador", "admin", senha_hash, "admin", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+    # Permite reset de senha via variável de ambiente (use apenas para recuperação)
+    reset_senha = os.environ.get("RESET_ADMIN_PASS", "")
+    if reset_senha:
+        nova_hash = hashlib.sha256(reset_senha.encode()).hexdigest()
+        conn.execute("UPDATE usuarios SET senha_hash=? WHERE login='admin'", (nova_hash,))
     conn.commit(); conn.close()
 
 # ── Utilitários ────────────────────────────────────────────────────────────────
@@ -334,6 +339,22 @@ def autorizacao():
             flash("Quantidade ou valor inválido.","danger"); return redirect(url_for("autorizacao"))
         row_e = db.execute("SELECT descricao, quantidade_contratada FROM exames WHERE codigo=?", (cod,)).fetchone()
         desc  = row_e["descricao"] if row_e else ""
+        # ── Verificação de saldo do exame ──────────────────────────────────────
+        status_form = request.form.get("status","AUTORIZADO")
+        if status_form != "CANCELADO":
+            qtd_contratada = row_e["quantidade_contratada"] if row_e else 0
+            qtd_usada = db.execute(
+                "SELECT COALESCE(SUM(quantidade_liberada),0) FROM autorizacoes WHERE codigo_exame=? AND status!='CANCELADO'",
+                (cod,)).fetchone()[0]
+            saldo_exame = qtd_contratada - qtd_usada
+            if saldo_exame <= 0:
+                db.close()
+                flash(f"❌ Saldo ESGOTADO! O exame '{desc}' não possui mais unidades disponíveis no contrato.", "danger")
+                return redirect(url_for("autorizacao"))
+            if qtde > saldo_exame:
+                db.close()
+                flash(f"❌ Quantidade solicitada ({qtde}) excede o saldo disponível ({saldo_exame}) para '{desc}'. Reduza a quantidade.", "danger")
+                return redirect(url_for("autorizacao"))
         db.execute("""INSERT INTO autorizacoes
             (numero_autorizacao,data_autorizacao,nome_paciente,cpf_cns,codigo_exame,
              descricao_exame,quantidade_liberada,valor_unitario,valor_total,
