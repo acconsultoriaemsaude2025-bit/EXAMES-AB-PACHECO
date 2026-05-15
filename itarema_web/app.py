@@ -7,11 +7,24 @@ Sistema Web – Contrato Nº 004/2023-SMS-02
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session
 import sqlite3, os, io, hashlib, secrets
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from functools import wraps
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "itarema-saude-2023")
+app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+
+# ── Configurações de segurança da sessão ──────────────────────────────────────
+app.config.update(
+    SESSION_COOKIE_HTTPONLY  = True,   # JS não acessa o cookie
+    SESSION_COOKIE_SAMESITE  = "Lax",  # Proteção CSRF básica
+    SESSION_COOKIE_SECURE    = False,  # True em produção com HTTPS
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=8),  # Sessão expira em 8h
+)
+
+# Controle de tentativas de login (em memória)
+_tentativas_login = {}   # {ip: {"count": N, "bloqueado_ate": datetime}}
+MAX_TENTATIVAS   = 5     # máximo de erros antes de bloquear
+BLOQUEIO_MINUTOS = 15    # tempo de bloqueio em minutos
 
 DB_PATH = os.environ.get("DB_PATH", os.path.join(os.path.dirname(__file__), "itarema_web.db"))
 CONTRATO_NUM   = "004/2023-SMS-02"
@@ -133,7 +146,9 @@ def init_db():
             responsavel TEXT,
             status TEXT DEFAULT 'AUTORIZADO',
             observacoes TEXT,
-            criado_em TEXT DEFAULT (datetime('now','localtime'))
+            criado_em TEXT DEFAULT (datetime('now','localtime')),
+            criado_por_id INTEGER,
+            criado_por_nome TEXT
         );
         CREATE TABLE IF NOT EXISTS orcamento (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -157,6 +172,10 @@ def init_db():
             usado INTEGER DEFAULT 0
         );
     """)
+    # Migração: adiciona colunas novas se ainda não existirem
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(autorizacoes)").fetchall()]
+    if "criado_por_id"   not in cols: conn.execute("ALTER TABLE autorizacoes ADD COLUMN criado_por_id INTEGER")
+    if "criado_por_nome" not in cols: conn.execute("ALTER TABLE autorizacoes ADD COLUMN criado_por_nome TEXT")
     if conn.execute("SELECT COUNT(*) FROM exames").fetchone()[0] == 0:
         conn.executemany(
             "INSERT OR IGNORE INTO exames(codigo,descricao,tipo,valor_unitario,quantidade_contratada) VALUES(?,?,?,?,?)",
@@ -194,12 +213,44 @@ def fmt_data(s):
 def hash_senha(senha):
     return hashlib.sha256(senha.encode()).hexdigest()
 
+def get_ip():
+    return request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
+
+def verificar_bloqueio(ip):
+    """Retorna (bloqueado: bool, segundos_restantes: int)"""
+    info = _tentativas_login.get(ip)
+    if not info: return False, 0
+    if info.get("bloqueado_ate") and datetime.now() < info["bloqueado_ate"]:
+        restante = int((info["bloqueado_ate"] - datetime.now()).total_seconds())
+        return True, restante
+    return False, 0
+
+def registrar_falha(ip):
+    info = _tentativas_login.get(ip, {"count": 0, "bloqueado_ate": None})
+    info["count"] += 1
+    if info["count"] >= MAX_TENTATIVAS:
+        info["bloqueado_ate"] = datetime.now() + timedelta(minutes=BLOQUEIO_MINUTOS)
+        info["count"] = 0
+    _tentativas_login[ip] = info
+
+def limpar_tentativas(ip):
+    _tentativas_login.pop(ip, None)
+
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get("usuario_id"):
             flash("Faça login para acessar o sistema.", "warning")
             return redirect(url_for("login"))
+        # Verifica timeout de sessão
+        ultimo_acesso = session.get("ultimo_acesso")
+        if ultimo_acesso:
+            inativo = datetime.now() - datetime.fromisoformat(ultimo_acesso)
+            if inativo > timedelta(hours=8):
+                session.clear()
+                flash("Sessão expirada por inatividade. Faça login novamente.", "warning")
+                return redirect(url_for("login"))
+        session["ultimo_acesso"] = datetime.now().isoformat()
         return f(*args, **kwargs)
     return decorated
 
@@ -218,24 +269,51 @@ app.jinja_env.globals.update(fmt_brl=fmt_brl, fmt_data=fmt_data,
                               CONTRATO_NUM=CONTRATO_NUM, CONTRATO_EMP=CONTRATO_EMP,
                               CONTRATO_VALOR=CONTRATO_VALOR, hoje=date.today)
 
+# ── Cabeçalhos de segurança em todas as respostas ─────────────────────────────
+@app.after_request
+def security_headers(response):
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"]        = "DENY"
+    response.headers["X-XSS-Protection"]       = "1; mode=block"
+    response.headers["Referrer-Policy"]        = "strict-origin-when-cross-origin"
+    return response
+
 # ── Rotas de Autenticação ──────────────────────────────────────────────────────
 @app.route("/login", methods=["GET","POST"])
 def login():
     if session.get("usuario_id"):
         return redirect(url_for("dashboard"))
+    ip = get_ip()
+    bloqueado, segundos = verificar_bloqueio(ip)
+    if bloqueado:
+        minutos = segundos // 60 + 1
+        flash(f"⛔ Muitas tentativas incorretas. Aguarde {minutos} minuto(s) para tentar novamente.", "danger")
+        return render_template("login.html")
     if request.method == "POST":
         login_u = request.form.get("login","").strip()
         senha   = request.form.get("senha","").strip()
+        if not login_u or not senha:
+            flash("Preencha login e senha.", "danger")
+            return render_template("login.html")
         db = get_db()
         user = db.execute("SELECT * FROM usuarios WHERE login=? AND ativo=1", (login_u,)).fetchone()
         db.close()
         if user and user["senha_hash"] == hash_senha(senha):
-            session["usuario_id"]    = user["id"]
-            session["usuario_nome"]  = user["nome"]
-            session["usuario_perfil"]= user["perfil"]
+            limpar_tentativas(ip)
+            session.permanent = True
+            session["usuario_id"]      = user["id"]
+            session["usuario_nome"]    = user["nome"]
+            session["usuario_perfil"]  = user["perfil"]
+            session["ultimo_acesso"]   = datetime.now().isoformat()
             flash(f"Bem-vindo, {user['nome']}!", "success")
             return redirect(url_for("dashboard"))
-        flash("Login ou senha incorretos.", "danger")
+        registrar_falha(ip)
+        info = _tentativas_login.get(ip, {})
+        tentativas = MAX_TENTATIVAS - info.get("count", 0)
+        if info.get("bloqueado_ate"):
+            flash(f"⛔ Conta bloqueada por {BLOQUEIO_MINUTOS} minutos após múltiplas tentativas.", "danger")
+        else:
+            flash(f"Login ou senha incorretos. Tentativas restantes: {max(0,tentativas)}.", "danger")
     return render_template("login.html")
 
 @app.route("/logout")
@@ -414,13 +492,14 @@ def autorizacao():
         db.execute("""INSERT INTO autorizacoes
             (numero_autorizacao,data_autorizacao,nome_paciente,cpf_cns,codigo_exame,
              descricao_exame,quantidade_liberada,valor_unitario,valor_total,
-             responsavel,status,observacoes)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+             responsavel,status,observacoes,criado_por_id,criado_por_nome)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (request.form.get("numero_autorizacao","").strip() or None,
              data_db, pac, request.form.get("cpf_cns","").strip() or None,
              cod, desc, qtde, vu, total, resp,
              request.form.get("status","AUTORIZADO"),
-             request.form.get("observacoes","").strip() or None))
+             request.form.get("observacoes","").strip() or None,
+             session.get("usuario_id"), session.get("usuario_nome")))
         db.commit()
         flash(f"✅ Autorização salva! Paciente: {pac} | Exame: {desc} | Valor: {fmt_brl(total)}","success")
         return redirect(url_for("autorizacao"))
@@ -468,8 +547,21 @@ def historico():
 @app.route("/historico/excluir/<int:id>", methods=["POST"])
 @login_required
 def excluir_aut(id):
-    db = get_db(); db.execute("DELETE FROM autorizacoes WHERE id=?", (id,)); db.commit(); db.close()
-    flash("Autorização excluída.","warning"); return redirect(url_for("historico"))
+    db  = get_db()
+    row = db.execute("SELECT criado_por_id FROM autorizacoes WHERE id=?", (id,)).fetchone()
+    if not row:
+        db.close(); flash("Autorização não encontrada.", "danger")
+        return redirect(url_for("historico"))
+    eh_admin = session.get("usuario_perfil") == "admin"
+    eh_dono  = row["criado_por_id"] == session.get("usuario_id") or row["criado_por_id"] is None
+    if not eh_admin and not eh_dono:
+        db.close()
+        flash("❌ Você não tem permissão para excluir esta autorização. Apenas quem a criou ou um administrador pode excluí-la.", "danger")
+        return redirect(url_for("historico"))
+    db.execute("DELETE FROM autorizacoes WHERE id=?", (id,))
+    db.commit(); db.close()
+    flash("Autorização excluída.", "warning")
+    return redirect(url_for("historico"))
 
 @app.route("/historico/editar/<int:id>", methods=["GET","POST"])
 @login_required
