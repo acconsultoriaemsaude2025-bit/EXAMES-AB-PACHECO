@@ -68,9 +68,23 @@
     <a href="{{ url_for('exames') }}"      class="nav-link {% if request.endpoint=='exames' %}active{% endif %}">
       <i class="bi bi-clipboard2-pulse"></i> Catálogo de Exames
     </a>
+    {% if session.usuario_perfil == 'admin' %}
+    <a href="{{ url_for('usuarios') }}" class="nav-link {% if request.endpoint=='usuarios' %}active{% endif %}">
+      <i class="bi bi-people"></i> Usuários
+    </a>
+    {% endif %}
   </div>
-  <div class="p-3" style="font-size:.72rem;color:rgba(255,255,255,.35);border-top:1px solid rgba(255,255,255,.1)">
-    Contrato Nº {{ CONTRATO_NUM }}<br>{{ CONTRATO_EMP }}<br>Total: {{ fmt_brl(CONTRATO_VALOR) }}
+  <div class="p-3" style="border-top:1px solid rgba(255,255,255,.1)">
+    <div style="font-size:.75rem;color:rgba(255,255,255,.6)" class="mb-2">
+      <i class="bi bi-person-circle me-1"></i>{{ session.usuario_nome or '' }}<br>
+      <span style="font-size:.68rem;opacity:.6">{{ session.usuario_perfil or '' }}</span>
+    </div>
+    <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline-light w-100" style="font-size:.78rem">
+      <i class="bi bi-box-arrow-right me-1"></i>Sair
+    </a>
+    <div class="mt-2" style="font-size:.68rem;color:rgba(255,255,255,.3)">
+      Contrato Nº {{ CONTRATO_NUM }}<br>Total: {{ fmt_brl(CONTRATO_VALOR) }}
+    </div>
   </div>
 </nav>
 
