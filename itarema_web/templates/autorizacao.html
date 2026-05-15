@@ -20,11 +20,8 @@
             </div>
             <div class="col-md-4">
               <label class="form-label fw-semibold">Data <span class="text-danger">*</span></label>
-              <div class="input-group">
-                <input name="data_autorizacao" id="dataAut" type="text" class="form-control"
-                       placeholder="DD/MM/AAAA" value="{{ hoje_str }}" required autocomplete="off">
-                <input type="date" id="datePicker" class="form-control" style="max-width:46px;padding:6px 4px;cursor:pointer" title="Selecionar data">
-              </div>
+              <input type="date" id="datePicker" name="data_autorizacao_iso" class="form-control" required>
+              <input type="hidden" name="data_autorizacao" id="dataAut">
             </div>
             <div class="col-md-4">
               <label class="form-label fw-semibold">Status</label>
@@ -164,28 +161,24 @@
 
 {% block scripts %}
 <script>
-// Calendário ↔ campo de texto
-const dataAut    = document.getElementById('dataAut');
+// Calendário – preenche a data oculta no formato DD/MM/AAAA
 const datePicker = document.getElementById('datePicker');
+const dataAut    = document.getElementById('dataAut');
 
-// Preenche o calendário com a data atual ao carregar
+// Define hoje como valor padrão
 (function(){
-  const parts = dataAut.value.split('/');
-  if(parts.length === 3) datePicker.value = `${parts[2]}-${parts[1]}-${parts[0]}`;
+  const hoje = new Date();
+  const y = hoje.getFullYear();
+  const m = String(hoje.getMonth()+1).padStart(2,'0');
+  const d = String(hoje.getDate()).padStart(2,'0');
+  datePicker.value = `${y}-${m}-${d}`;
+  dataAut.value    = `${d}/${m}/${y}`;
 })();
 
-// Ao selecionar no calendário → preenche o campo texto no formato DD/MM/AAAA
 datePicker.addEventListener('change', function(){
   if(!this.value) return;
   const [y,m,d] = this.value.split('-');
   dataAut.value = `${d}/${m}/${y}`;
-});
-
-// Ao digitar no campo texto → atualiza o calendário
-dataAut.addEventListener('change', function(){
-  const parts = this.value.split('/');
-  if(parts.length === 3 && parts[2].length === 4)
-    datePicker.value = `${parts[2]}-${parts[1]}-${parts[0]}`;
 });
 
 const sel         = document.getElementById('selExame');
