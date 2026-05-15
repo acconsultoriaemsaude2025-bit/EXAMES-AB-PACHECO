@@ -5,8 +5,8 @@ CONTROLE DE EXAMES LABORATORIAIS – PREFEITURA MUNICIPAL DE ITAREMA
 Sistema Web – Contrato Nº 004/2023-SMS-02
 """
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
-import sqlite3, os, io
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session
+import sqlite3, os, io, hashlib, secrets
 from datetime import datetime, date
 from functools import wraps
 
@@ -138,15 +138,28 @@ def init_db():
             ano INTEGER NOT NULL UNIQUE,
             valor REAL DEFAULT 0.0
         );
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nome TEXT NOT NULL,
+            login TEXT NOT NULL UNIQUE,
+            senha_hash TEXT NOT NULL,
+            perfil TEXT DEFAULT 'operador',
+            ativo INTEGER DEFAULT 1,
+            criado_em TEXT
+        );
     """)
     if conn.execute("SELECT COUNT(*) FROM exames").fetchone()[0] == 0:
         conn.executemany(
             "INSERT OR IGNORE INTO exames(codigo,descricao,tipo,valor_unitario,quantidade_contratada) VALUES(?,?,?,?,?)",
             EXAMES_CONTRATO)
     conn.execute("INSERT OR IGNORE INTO orcamento(ano,valor) VALUES(?,?)", (CONTRATO_ANO, CONTRATO_VALOR))
-    # Garante orçamento para o ano atual também
     ano_atual = date.today().year
     conn.execute("INSERT OR IGNORE INTO orcamento(ano,valor) VALUES(?,?)", (ano_atual, CONTRATO_VALOR))
+    # Cria usuário admin padrão se não existir
+    if conn.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0] == 0:
+        senha_hash = hashlib.sha256("admin123".encode()).hexdigest()
+        conn.execute("INSERT INTO usuarios(nome,login,senha_hash,perfil,criado_em) VALUES(?,?,?,?,?)",
+                     ("Administrador", "admin", senha_hash, "admin", datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
     conn.commit(); conn.close()
 
 # ── Utilitários ────────────────────────────────────────────────────────────────
@@ -164,12 +177,107 @@ def fmt_data(s):
     try: return datetime.strptime(s.strip(), "%Y-%m-%d").strftime("%d/%m/%Y")
     except: return s or ""
 
+def hash_senha(senha):
+    return hashlib.sha256(senha.encode()).hexdigest()
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("usuario_id"):
+            flash("Faça login para acessar o sistema.", "warning")
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated
+
+def admin_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get("usuario_id"):
+            return redirect(url_for("login"))
+        if session.get("usuario_perfil") != "admin":
+            flash("Acesso restrito a administradores.", "danger")
+            return redirect(url_for("dashboard"))
+        return f(*args, **kwargs)
+    return decorated
+
 app.jinja_env.globals.update(fmt_brl=fmt_brl, fmt_data=fmt_data,
                               CONTRATO_NUM=CONTRATO_NUM, CONTRATO_EMP=CONTRATO_EMP,
                               CONTRATO_VALOR=CONTRATO_VALOR, hoje=date.today)
 
-# ── Rotas ──────────────────────────────────────────────────────────────────────
+# ── Rotas de Autenticação ──────────────────────────────────────────────────────
+@app.route("/login", methods=["GET","POST"])
+def login():
+    if session.get("usuario_id"):
+        return redirect(url_for("dashboard"))
+    if request.method == "POST":
+        login_u = request.form.get("login","").strip()
+        senha   = request.form.get("senha","").strip()
+        db = get_db()
+        user = db.execute("SELECT * FROM usuarios WHERE login=? AND ativo=1", (login_u,)).fetchone()
+        db.close()
+        if user and user["senha_hash"] == hash_senha(senha):
+            session["usuario_id"]    = user["id"]
+            session["usuario_nome"]  = user["nome"]
+            session["usuario_perfil"]= user["perfil"]
+            flash(f"Bem-vindo, {user['nome']}!", "success")
+            return redirect(url_for("dashboard"))
+        flash("Login ou senha incorretos.", "danger")
+    return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    flash("Sessão encerrada.", "info")
+    return redirect(url_for("login"))
+
+@app.route("/usuarios", methods=["GET","POST"])
+@admin_required
+def usuarios():
+    db = get_db()
+    if request.method == "POST":
+        acao  = request.form.get("acao")
+        nome  = request.form.get("nome","").strip()
+        login_u = request.form.get("login","").strip()
+        perfil  = request.form.get("perfil","operador")
+        if acao == "add":
+            senha = request.form.get("senha","").strip()
+            if not nome or not login_u or not senha:
+                flash("Preencha todos os campos.", "danger")
+            else:
+                try:
+                    db.execute("INSERT INTO usuarios(nome,login,senha_hash,perfil,criado_em) VALUES(?,?,?,?,?)",
+                               (nome, login_u, hash_senha(senha), perfil, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                    db.commit()
+                    flash(f"✅ Usuário '{login_u}' criado!", "success")
+                except: flash(f"Login '{login_u}' já existe.", "danger")
+        elif acao == "toggle":
+            uid = request.form.get("uid")
+            db.execute("UPDATE usuarios SET ativo = CASE WHEN ativo=1 THEN 0 ELSE 1 END WHERE id=?", (uid,))
+            db.commit()
+            flash("Status do usuário atualizado.", "info")
+        elif acao == "reset_senha":
+            uid   = request.form.get("uid")
+            nova  = request.form.get("nova_senha","").strip()
+            if nova:
+                db.execute("UPDATE usuarios SET senha_hash=? WHERE id=?", (hash_senha(nova), uid))
+                db.commit()
+                flash("✅ Senha redefinida!", "success")
+        elif acao == "del":
+            uid = request.form.get("uid")
+            if str(uid) == str(session.get("usuario_id")):
+                flash("Não é possível excluir seu próprio usuário.", "danger")
+            else:
+                db.execute("DELETE FROM usuarios WHERE id=?", (uid,))
+                db.commit()
+                flash("Usuário excluído.", "warning")
+        return redirect(url_for("usuarios"))
+    rows = db.execute("SELECT * FROM usuarios ORDER BY nome").fetchall()
+    db.close()
+    return render_template("usuarios.html", rows=rows)
+
+# ── Rotas Principais ───────────────────────────────────────────────────────────
 @app.route("/")
+@login_required
 def dashboard():
     ano = int(request.args.get("ano", date.today().year))
     db = get_db()
@@ -203,6 +311,7 @@ def dashboard():
                            ano=ano, meses_labels=meses_labels, meses_valores=meses_valores)
 
 @app.route("/autorizacao", methods=["GET","POST"])
+@login_required
 def autorizacao():
     db = get_db()
     exames = db.execute("SELECT codigo, descricao FROM exames ORDER BY descricao").fetchall()
@@ -245,6 +354,7 @@ def autorizacao():
                            saldo=orc-gasto, hoje_str=date.today().strftime("%d/%m/%Y"))
 
 @app.route("/api/exame/<codigo>")
+@login_required
 def api_exame(codigo):
     db = get_db()
     row = db.execute("SELECT descricao,valor_unitario,quantidade_contratada FROM exames WHERE codigo=?", (codigo.upper(),)).fetchone()
@@ -256,6 +366,7 @@ def api_exame(codigo):
                     "saldo": row["quantidade_contratada"] - int(usado)})
 
 @app.route("/historico")
+@login_required
 def historico():
     db  = get_db()
     pac = request.args.get("paciente","")
@@ -276,11 +387,13 @@ def historico():
                            filtros={"paciente":pac,"status":st,"mes":mes,"exame":exame})
 
 @app.route("/historico/excluir/<int:id>", methods=["POST"])
+@login_required
 def excluir_aut(id):
     db = get_db(); db.execute("DELETE FROM autorizacoes WHERE id=?", (id,)); db.commit(); db.close()
     flash("Autorização excluída.","warning"); return redirect(url_for("historico"))
 
 @app.route("/historico/editar/<int:id>", methods=["GET","POST"])
+@login_required
 def editar_aut(id):
     db = get_db()
     if request.method == "POST":
@@ -301,6 +414,7 @@ def editar_aut(id):
     return render_template("editar.html", row=row)
 
 @app.route("/saldo")
+@login_required
 def saldo_exames():
     db = get_db()
     rows = db.execute("""
@@ -313,6 +427,7 @@ def saldo_exames():
     return render_template("saldo.html", rows=rows)
 
 @app.route("/exames", methods=["GET","POST"])
+@login_required
 def exames():
     db = get_db()
     if request.method == "POST":
@@ -344,6 +459,7 @@ def exames():
     return render_template("exames.html", rows=rows)
 
 @app.route("/relatorio")
+@login_required
 def relatorio():
     ano = int(request.args.get("ano", CONTRATO_ANO))
     db  = get_db()
@@ -364,6 +480,7 @@ def relatorio():
                            anos=list(range(2022, 2031)))
 
 @app.route("/orcamento", methods=["POST"])
+@login_required
 def set_orcamento():
     try:
         ano = int(request.form.get("ano", CONTRATO_ANO))
@@ -376,6 +493,7 @@ def set_orcamento():
     return redirect(url_for("dashboard"))
 
 @app.route("/exportar/<int:ano>")
+@login_required
 def exportar(ano):
     try:
         import openpyxl
