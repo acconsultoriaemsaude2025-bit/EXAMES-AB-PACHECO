@@ -102,10 +102,15 @@
 <!-- SIDEBAR -->
 <nav class="sidebar d-flex flex-column" id="sidebar">
   <div class="brand">
-    <i class="bi bi-hospital fs-1 text-warning"></i>
-    <span>Secretaria Municipal<br>de Saúde – Itarema/CE<br>
-      <small style="font-weight:400;font-size:.75rem;opacity:.7">Controle de Exames Lab.</small>
+    <img src="{{ url_for('static', filename='logo_itarema.png') }}"
+         alt="Governo Municipal de Itarema"
+         style="max-width:170px;max-height:70px;object-fit:contain;"
+         onerror="this.style.display='none';document.getElementById('brandFallback').style.display='block'">
+    <span id="brandFallback" style="display:none">
+      <i class="bi bi-hospital fs-1 text-warning"></i><br>
+      Secretaria Municipal<br>de Saúde – Itarema/CE
     </span>
+    <span style="display:block;font-size:.72rem;opacity:.7;margin-top:4px">Controle de Exames Lab.</span>
   </div>
   <div class="flex-grow-1 py-2">
     {% if session.usuario_perfil == 'prestador' %}
