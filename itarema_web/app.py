@@ -387,17 +387,18 @@ def autorizacao():
         if not cod: flash("Selecione o exame.","danger"); return redirect(url_for("autorizacao"))
         if not resp: flash("Informe o responsável.","danger"); return redirect(url_for("autorizacao"))
         try:
-            qtde  = int(request.form.get("quantidade_liberada", 1))
-            vu    = float(request.form.get("valor_unitario", 0))
-            total = qtde * vu
+            qtde = int(request.form.get("quantidade_liberada", 1))
         except:
-            flash("Quantidade ou valor inválido.","danger"); return redirect(url_for("autorizacao"))
-        row_e = db.execute("SELECT descricao, quantidade_contratada FROM exames WHERE codigo=?", (cod,)).fetchone()
+            flash("Quantidade inválida.","danger"); return redirect(url_for("autorizacao"))
+        row_e = db.execute("SELECT descricao, quantidade_contratada, valor_unitario FROM exames WHERE codigo=?", (cod,)).fetchone()
         desc  = row_e["descricao"] if row_e else ""
+        # Sempre usa o preço do banco de dados (ignora o valor do formulário)
+        vu    = float(row_e["valor_unitario"]) if row_e else 0.0
+        total = qtde * vu
         # ── Verificação de saldo do exame ──────────────────────────────────────
         status_form = request.form.get("status","AUTORIZADO")
         if status_form != "CANCELADO":
-            qtd_contratada = row_e["quantidade_contratada"] if row_e else 0
+            qtd_contratada = int(row_e["quantidade_contratada"]) if row_e else 0
             qtd_usada = db.execute(
                 "SELECT COALESCE(SUM(quantidade_liberada),0) FROM autorizacoes WHERE codigo_exame=? AND status!='CANCELADO'",
                 (cod,)).fetchone()[0]
