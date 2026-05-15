@@ -401,6 +401,8 @@ def exportar(ano):
     return send_file(buf, download_name=f"Itarema_Exames_{ano}.xlsx",
                      as_attachment=True, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
+# Inicializa o banco sempre que o módulo for carregado (gunicorn ou direto)
+init_db()
+
 if __name__ == "__main__":
-    init_db()
     app.run(debug=False, host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
