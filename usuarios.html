@@ -1,0 +1,162 @@
+{% extends "base.html" %}
+{% block title %}Usuários{% endblock %}
+{% block icon %}people{% endblock %}
+{% block page_title %}Gerenciamento de Usuários{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <!-- Formulário novo usuário -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header" style="background:#1F3864;color:#fff">
+        <i class="bi bi-person-plus me-2"></i>Novo Usuário
+      </div>
+      <div class="card-body">
+        <form method="post">
+          <input type="hidden" name="acao" value="add">
+          <div class="mb-2">
+            <label class="form-label fw-semibold">Nome completo <span class="text-danger">*</span></label>
+            <input name="nome" type="text" class="form-control" placeholder="Nome do usuário" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold">Login <span class="text-danger">*</span></label>
+            <input name="login" type="text" class="form-control" placeholder="Ex: maria.silva" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold">Senha <span class="text-danger">*</span></label>
+            <input name="senha" type="password" class="form-control" placeholder="Mínimo 6 caracteres" required>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Perfil</label>
+            <select name="perfil" class="form-select">
+              <option value="operador">Operador – acesso padrão</option>
+              <option value="admin">Administrador – acesso total</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary w-100">
+            <i class="bi bi-plus-circle me-1"></i>Criar Usuário
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Lista de usuários -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header bg-white">
+        <i class="bi bi-people me-2"></i>{{ rows|length }} usuário(s) cadastrado(s)
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr>
+              <th>Nome</th><th>Login</th><th>Perfil</th>
+              <th class="text-center">Status</th><th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for u in rows %}
+            <tr class="{% if not u.ativo %}table-secondary text-muted{% endif %}">
+              <td>
+                <i class="bi bi-person-circle me-1 text-secondary"></i>
+                {{ u.nome }}
+                {% if u.id == session.usuario_id %}
+                  <span class="badge bg-info ms-1">você</span>
+                {% endif %}
+              </td>
+              <td><code>{{ u.login }}</code></td>
+              <td>
+                {% if u.perfil == 'admin' %}
+                  <span class="badge bg-danger"><i class="bi bi-shield-check me-1"></i>Admin</span>
+                {% else %}
+                  <span class="badge bg-secondary">Operador</span>
+                {% endif %}
+              </td>
+              <td class="text-center">
+                {% if u.ativo %}
+                  <span class="badge bg-success">Ativo</span>
+                {% else %}
+                  <span class="badge bg-warning text-dark">Inativo</span>
+                {% endif %}
+              </td>
+              <td>
+                <!-- Ativar/Desativar -->
+                <form method="post" style="display:inline">
+                  <input type="hidden" name="acao" value="toggle">
+                  <input type="hidden" name="uid" value="{{ u.id }}">
+                  <button class="btn btn-sm btn-outline-{% if u.ativo %}warning{% else %}success{% endif %} py-0 px-1"
+                          title="{% if u.ativo %}Desativar{% else %}Ativar{% endif %}">
+                    <i class="bi bi-{% if u.ativo %}pause-circle{% else %}play-circle{% endif %}"></i>
+                  </button>
+                </form>
+                <!-- Redefinir senha -->
+                <button class="btn btn-sm btn-outline-primary py-0 px-1" title="Redefinir senha"
+                        onclick="resetSenha({{ u.id }}, '{{ u.nome }}')">
+                  <i class="bi bi-key"></i>
+                </button>
+                <!-- Excluir -->
+                {% if u.id != session.usuario_id %}
+                <form method="post" style="display:inline"
+                      onsubmit="return confirm('Excluir usuário {{ u.nome }}?')">
+                  <input type="hidden" name="acao" value="del">
+                  <input type="hidden" name="uid" value="{{ u.id }}">
+                  <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Excluir">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Info de perfis -->
+    <div class="card mt-3">
+      <div class="card-body py-2" style="font-size:.82rem">
+        <strong><i class="bi bi-info-circle me-1"></i>Perfis de acesso:</strong>
+        <span class="badge bg-danger ms-2">Admin</span> Acesso total + gerenciar usuários
+        <span class="badge bg-secondary ms-3">Operador</span> Cadastrar autorizações, consultar histórico e relatórios
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal redefinir senha -->
+<div class="modal fade" id="modalSenha" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title">Redefinir Senha</h6>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post">
+        <input type="hidden" name="acao" value="reset_senha">
+        <input type="hidden" name="uid" id="resetUid">
+        <div class="modal-body">
+          <p class="text-muted mb-2" id="resetNome" style="font-size:.85rem"></p>
+          <label class="form-label">Nova senha</label>
+          <input name="nova_senha" type="password" class="form-control" placeholder="Nova senha" required>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-primary btn-sm" type="submit">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function resetSenha(uid, nome){
+  document.getElementById('resetUid').value = uid;
+  document.getElementById('resetNome').textContent = 'Usuário: ' + nome;
+  new bootstrap.Modal(document.getElementById('modalSenha')).show();
+}
+</script>
+{% endblock %}
