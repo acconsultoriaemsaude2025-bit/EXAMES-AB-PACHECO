@@ -542,7 +542,9 @@ def historico():
     total_v = sum(r["valor_total"] for r in rows if r["status"] != "CANCELADO")
     db.close()
     return render_template("historico.html", rows=rows, total_v=total_v,
-                           filtros={"paciente":pac,"status":st,"mes":mes,"exame":exame})
+                           filtros={"paciente":pac,"status":st,"mes":mes,"exame":exame},
+                           uid_atual=int(session.get("usuario_id") or 0),
+                           perfil_atual=session.get("usuario_perfil",""))
 
 @app.route("/historico/excluir/<int:id>", methods=["POST"])
 @login_required
@@ -550,17 +552,20 @@ def excluir_aut(id):
     db  = get_db()
     row = db.execute("SELECT criado_por_id FROM autorizacoes WHERE id=?", (id,)).fetchone()
     if not row:
-        db.close(); flash("Autorização não encontrada.", "danger")
+        db.close()
+        flash("Autorização não encontrada.", "danger")
         return redirect(url_for("historico"))
-    eh_admin = session.get("usuario_perfil") == "admin"
-    eh_dono  = row["criado_por_id"] == session.get("usuario_id") or row["criado_por_id"] is None
+    eh_admin     = session.get("usuario_perfil") == "admin"
+    uid_sessao   = int(session.get("usuario_id") or 0)
+    uid_criador  = int(row["criado_por_id"]) if row["criado_por_id"] is not None else None
+    eh_dono      = (uid_criador is None) or (uid_sessao == uid_criador)
     if not eh_admin and not eh_dono:
         db.close()
-        flash("❌ Você não tem permissão para excluir esta autorização. Apenas quem a criou ou um administrador pode excluí-la.", "danger")
+        flash("❌ Sem permissão! Só quem criou esta autorização ou um administrador pode excluí-la.", "danger")
         return redirect(url_for("historico"))
     db.execute("DELETE FROM autorizacoes WHERE id=?", (id,))
     db.commit(); db.close()
-    flash("Autorização excluída.", "warning")
+    flash("✅ Autorização excluída.", "warning")
     return redirect(url_for("historico"))
 
 @app.route("/historico/editar/<int:id>", methods=["GET","POST"])
