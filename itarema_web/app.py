@@ -460,8 +460,18 @@ def autorizacao():
         pac      = request.form.get("nome_paciente","").strip()
         resp     = request.form.get("responsavel","").strip()
         cpf_cns  = request.form.get("cpf_cns","").strip() or None
-        num_aut  = request.form.get("numero_autorizacao","").strip() or None
         obs      = request.form.get("observacoes","").strip() or None
+        # Gera número de autorização automático: ANO-SEQUENCIAL (ex: 2026-0001)
+        ano_atual = date.today().year
+        ultimo = db.execute(
+            "SELECT numero_autorizacao FROM autorizacoes WHERE numero_autorizacao LIKE ? ORDER BY id DESC LIMIT 1",
+            (f"{ano_atual}-%",)).fetchone()
+        if ultimo and ultimo["numero_autorizacao"]:
+            try: seq = int(ultimo["numero_autorizacao"].split("-")[1]) + 1
+            except: seq = 1
+        else:
+            seq = 1
+        num_aut = f"{ano_atual}-{seq:04d}"
         status_form = request.form.get("status","AUTORIZADO")
 
         # Validações dos campos comuns
