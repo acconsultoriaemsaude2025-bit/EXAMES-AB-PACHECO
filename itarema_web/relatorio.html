@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Relatório Mensal{% endblock %}
+{% block icon %}file-earmark-bar-graph{% endblock %}
+{% block page_title %}Relatório Mensal de Autorizações{% endblock %}
+
+{% block content %}
+<!-- Seletor de ano -->
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <form class="d-flex align-items-center gap-3" method="get">
+      <label class="fw-semibold mb-0">Ano:</label>
+      <select name="ano" class="form-select form-select-sm" style="width:120px" onchange="this.form.submit()">
+        {% for a in anos %}
+        <option {% if a==ano %}selected{% endif %}>{{ a }}</option>
+        {% endfor %}
+      </select>
+      <span class="text-muted" style="font-size:.83rem">Orçamento: <strong>{{ fmt_brl(orc) }}</strong></span>
+      <a href="{{ url_for('exportar', ano=ano) }}" class="btn btn-sm btn-success ms-auto">
+        <i class="bi bi-file-excel me-1"></i>Exportar Excel
+      </a>
+    </form>
+  </div>
+</div>
+
+<!-- Gráfico -->
+<div class="card mb-3">
+  <div class="card-body">
+    <canvas id="chartRel" height="100"></canvas>
+  </div>
+</div>
+
+<!-- Tabela mensal -->
+<div class="card">
+  <div class="card-header bg-white"><i class="bi bi-table me-2"></i>Detalhamento Mensal</div>
+  <div class="table-responsive">
+    <table class="table table-hover table-sm mb-0">
+      <thead>
+        <tr>
+          <th>Mês</th>
+          <th class="text-center">Qtde Aut.</th>
+          <th class="text-end">Valor do Mês</th>
+          <th class="text-end">Acumulado</th>
+          <th class="text-end">% Orçamento</th>
+          <th style="width:140px">Progresso</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set total_geral = namespace(v=0, q=0) %}
+        {% for d in dados %}
+        {% set total_geral.v = total_geral.v + d.valor %}
+        {% set total_geral.q = total_geral.q + d.qtd %}
+        <tr class="{% if d.valor > 0 %}table-active{% endif %}">
+          <td class="fw-semibold">{{ d.mes }}</td>
+          <td class="text-center">{{ d.qtd }}</td>
+          <td class="text-end">{{ fmt_brl(d.valor) }}</td>
+          <td class="text-end fw-semibold">{{ fmt_brl(d.acumulado) }}</td>
+          <td class="text-end">{{ "%.2f"|format(d.pct) }}%</td>
+          <td>
+            <div class="progress" style="height:12px;border-radius:6px">
+              <div class="progress-bar {% if d.pct > 15 %}bg-danger{% elif d.pct > 8 %}bg-warning{% else %}bg-primary{% endif %}"
+                   style="width:{{ [d.pct * 6, 100]|min }}%"></div>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr class="table-dark fw-bold">
+          <td>TOTAL {{ ano }}</td>
+          <td class="text-center">{{ total_geral.q }}</td>
+          <td class="text-end">{{ fmt_brl(total_geral.v) }}</td>
+          <td class="text-end">{{ fmt_brl(total_geral.v) }}</td>
+          <td class="text-end">{{ "%.2f"|format((total_geral.v / orc * 100) if orc > 0 else 0) }}%</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+new Chart(document.getElementById('chartRel'), {
+  type: 'line',
+  data: {
+    labels: {{ dados|map(attribute='mes')|list|tojson }},
+    datasets: [
+      {
+        label: 'Gasto Mensal (R$)',
+        data: {{ dados|map(attribute='valor')|list|tojson }},
+        backgroundColor: 'rgba(31,56,100,.15)',
+        borderColor: 'rgba(31,56,100,.8)',
+        borderWidth: 2,
+        fill: true,
+        tension: 0.3,
+        pointRadius: 4
+      },
+      {
+        label: 'Acumulado (R$)',
+        data: {{ dados|map(attribute='acumulado')|list|tojson }},
+        borderColor: '#198754',
+        borderWidth: 2,
+        borderDash: [5,4],
+        fill: false,
+        tension: 0.3,
+        pointRadius: 3
+      }
+    ]
+  },
+  options: {
+    responsive: true,
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      y: { ticks: { callback: v => 'R$ ' + v.toLocaleString('pt-BR') } }
+    }
+  }
+});
+</script>
+{% endblock %}

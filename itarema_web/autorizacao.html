@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% block title %}Nova Autorização{% endblock %}
+{% block icon %}plus-circle{% endblock %}
+{% block page_title %}Nova Autorização de Exame{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header" style="background:#1F3864;color:#fff">
+        <i class="bi bi-file-earmark-plus me-2"></i>Preencher Autorização
+      </div>
+      <div class="card-body">
+        <form method="post" id="frmAut">
+          <div class="row g-2">
+            <!-- Linha 1 -->
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Nº Autorização</label>
+              <input name="numero_autorizacao" type="text" class="form-control" placeholder="Ex: 2024-0001">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Data <span class="text-danger">*</span></label>
+              <input name="data_autorizacao" id="dataAut" type="text" class="form-control"
+                     placeholder="DD/MM/AAAA" value="{{ hoje_str }}" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Status</label>
+              <select name="status" class="form-select">
+                <option value="AUTORIZADO">AUTORIZADO</option>
+                <option value="PENDENTE">PENDENTE</option>
+                <option value="REALIZADO">REALIZADO</option>
+                <option value="CANCELADO">CANCELADO</option>
+              </select>
+            </div>
+            <!-- Linha 2 -->
+            <div class="col-md-8">
+              <label class="form-label fw-semibold">Nome do Paciente <span class="text-danger">*</span></label>
+              <input name="nome_paciente" type="text" class="form-control"
+                     placeholder="Nome completo do paciente" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">CPF / CNS</label>
+              <input name="cpf_cns" type="text" class="form-control" placeholder="000.000.000-00">
+            </div>
+            <!-- Linha 3 – Exame -->
+            <div class="col-12">
+              <label class="form-label fw-semibold">Exame <span class="text-danger">*</span></label>
+              <select name="codigo_exame" id="selExame" class="form-select" required>
+                <option value="">— Selecione o exame —</option>
+                {% for ex in exames %}
+                <option value="{{ ex.codigo }}">{{ ex.codigo }} – {{ ex.descricao }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <!-- Info do exame -->
+            <div class="col-12" id="infoExame" style="display:none">
+              <div class="alert alert-info py-2 mb-0" id="infoBox"></div>
+            </div>
+            <!-- Linha 4 -->
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Qtde Liberada <span class="text-danger">*</span></label>
+              <input name="quantidade_liberada" id="qtde" type="number" class="form-control"
+                     value="1" min="1" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Valor Unitário (R$)</label>
+              <input name="valor_unitario" id="vu" type="number" class="form-control"
+                     step="0.01" value="0.00" readonly>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Valor Total</label>
+              <input id="total" type="text" class="form-control fw-bold text-success" readonly value="R$ 0,00">
+            </div>
+            <!-- Linha 5 -->
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Responsável pela Autorização <span class="text-danger">*</span></label>
+              <input name="responsavel" type="text" class="form-control"
+                     placeholder="Nome do responsável" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label fw-semibold">Observações</label>
+              <input name="observacoes" type="text" class="form-control" placeholder="Opcional">
+            </div>
+          </div>
+          <div class="mt-3 d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-circle me-1"></i>Salvar Autorização
+            </button>
+            <button type="reset" class="btn btn-outline-secondary">
+              <i class="bi bi-eraser me-1"></i>Limpar
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Painel lateral -->
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header bg-success text-white"><i class="bi bi-wallet2 me-1"></i>Saldo Financeiro</div>
+      <div class="card-body text-center">
+        <div class="text-muted mb-1" style="font-size:.8rem">Orçamento Contrato</div>
+        <div class="fs-6 fw-bold">{{ fmt_brl(orc) }}</div>
+        <hr class="my-2">
+        <div class="text-muted mb-1" style="font-size:.8rem">Total Autorizado</div>
+        <div class="fs-6 fw-bold text-danger">{{ fmt_brl(gasto) }}</div>
+        <hr class="my-2">
+        <div class="text-muted mb-1" style="font-size:.8rem">Saldo Disponível</div>
+        <div class="fs-4 fw-bold {% if saldo < 0 %}text-danger{% else %}text-success{% endif %}">
+          {{ fmt_brl(saldo) }}
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header bg-info text-white"><i class="bi bi-info-circle me-1"></i>Contrato</div>
+      <div class="card-body" style="font-size:.82rem">
+        <strong>Nº:</strong> {{ CONTRATO_NUM }}<br>
+        <strong>Empresa:</strong> {{ CONTRATO_EMP }}<br>
+        <strong>Total:</strong> {{ fmt_brl(CONTRATO_VALOR) }}<br>
+        <strong>Exames:</strong> 77 procedimentos
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const sel = document.getElementById('selExame');
+const vu  = document.getElementById('vu');
+const qtde = document.getElementById('qtde');
+const totalEl = document.getElementById('total');
+const infoBox = document.getElementById('infoBox');
+const infoDiv = document.getElementById('infoExame');
+
+function calcTotal(){
+  const v = parseFloat(vu.value)||0;
+  const q = parseInt(qtde.value)||1;
+  totalEl.value = 'R$ ' + (v*q).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+sel.addEventListener('change', function(){
+  const cod = this.value;
+  if(!cod){ infoDiv.style.display='none'; vu.value='0.00'; calcTotal(); return; }
+  fetch('/api/exame/'+cod)
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.erro){ infoDiv.style.display='none'; return; }
+      vu.value = d.valor_unitario.toFixed(2);
+      calcTotal();
+      const saldo = d.saldo;
+      const cls   = saldo <= 0 ? 'danger' : saldo <= 5 ? 'warning' : 'info';
+      infoBox.className = `alert alert-${cls} py-2 mb-0`;
+      infoBox.innerHTML = `<strong>${d.descricao}</strong><br>
+        Qtde contratada: <b>${d.qtd_contratada}</b> | 
+        Usada: <b>${d.qtd_usada}</b> | 
+        <span class="${saldo<=0?'text-danger fw-bold':''}">Saldo: <b>${saldo}</b></span>`;
+      infoDiv.style.display='';
+    });
+});
+qtde.addEventListener('input', calcTotal);
+</script>
+{% endblock %}

@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Catálogo de Exames{% endblock %}
+{% block icon %}clipboard2-pulse{% endblock %}
+{% block page_title %}Catálogo de Exames – Contrato{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <!-- Formulário adicionar/editar -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header" style="background:#1F3864;color:#fff">
+        <i class="bi bi-plus-circle me-2"></i>Adicionar Exame
+      </div>
+      <div class="card-body">
+        <form method="post" id="frmExame">
+          <input type="hidden" name="acao" id="acaoInput" value="add">
+          <input type="hidden" name="codigo_original" id="codOriginal">
+          <div class="mb-2">
+            <label class="form-label fw-semibold">Código SIGTAP <span class="text-danger">*</span></label>
+            <input name="codigo" id="inpCodigo" type="text" class="form-control" placeholder="000000000-0" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold">Descrição <span class="text-danger">*</span></label>
+            <input name="descricao" id="inpDesc" type="text" class="form-control" required>
+          </div>
+          <div class="mb-2">
+            <label class="form-label fw-semibold">Tipo / Categoria</label>
+            <input name="tipo" id="inpTipo" type="text" class="form-control" placeholder="Ex: Hematologia">
+          </div>
+          <div class="row g-2 mb-3">
+            <div class="col-6">
+              <label class="form-label fw-semibold">Valor Unit. (R$)</label>
+              <input name="valor_unitario" id="inpValor" type="number" step="0.01"
+                     class="form-control" value="0.00">
+            </div>
+            <div class="col-6">
+              <label class="form-label fw-semibold">Qtde Contratada</label>
+              <input name="quantidade_contratada" id="inpQtd" type="number"
+                     class="form-control" value="0">
+            </div>
+          </div>
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary flex-grow-1" id="btnSalvar">
+              <i class="bi bi-check-lg me-1"></i>Salvar
+            </button>
+            <button type="button" class="btn btn-outline-secondary" onclick="resetForm()">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tabela -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-table me-2"></i>{{ rows|length }} exames cadastrados</span>
+        <span style="font-size:.8rem" class="text-muted">Total contratado: {{ fmt_brl(rows|sum(attribute='valor_unitario')|float) }}</span>
+      </div>
+      <div class="table-responsive" style="max-height:600px;overflow-y:auto">
+        <table class="table table-hover table-sm mb-0">
+          <thead style="position:sticky;top:0">
+            <tr>
+              <th>Código</th><th>Descrição</th><th>Tipo</th>
+              <th class="text-end">Val.Unit</th><th class="text-center">Qtde</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rows %}
+            <tr>
+              <td><code>{{ r.codigo }}</code></td>
+              <td>{{ r.descricao }}</td>
+              <td><span class="badge bg-secondary">{{ r.tipo }}</span></td>
+              <td class="text-end">{{ fmt_brl(r.valor_unitario) }}</td>
+              <td class="text-center">{{ r.quantidade_contratada }}</td>
+              <td>
+                <button class="btn btn-sm btn-outline-primary py-0 px-1"
+                  onclick="editExame('{{ r.codigo }}','{{ r.descricao|replace("'","\\'") }}','{{ r.tipo }}','{{ r.valor_unitario }}','{{ r.quantidade_contratada }}')">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                <form method="post" style="display:inline"
+                      onsubmit="return confirm('Excluir exame {{ r.codigo }}?')">
+                  <input type="hidden" name="acao" value="del">
+                  <input type="hidden" name="codigo" value="{{ r.codigo }}">
+                  <button class="btn btn-sm btn-outline-danger py-0 px-1">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function editExame(cod, desc, tipo, val, qtd){
+  document.getElementById('acaoInput').value  = 'edit';
+  document.getElementById('codOriginal').value = cod;
+  document.getElementById('inpCodigo').value  = cod;
+  document.getElementById('inpDesc').value    = desc;
+  document.getElementById('inpTipo').value    = tipo;
+  document.getElementById('inpValor').value   = val;
+  document.getElementById('inpQtd').value     = qtd;
+  document.getElementById('btnSalvar').innerHTML = '<i class="bi bi-check-lg me-1"></i>Atualizar';
+  document.getElementById('inpCodigo').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function resetForm(){
+  document.getElementById('frmExame').reset();
+  document.getElementById('acaoInput').value = 'add';
+  document.getElementById('codOriginal').value = '';
+  document.getElementById('btnSalvar').innerHTML = '<i class="bi bi-check-lg me-1"></i>Salvar';
+}
+</script>
+{% endblock %}
