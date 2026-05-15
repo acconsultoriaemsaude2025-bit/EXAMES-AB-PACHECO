@@ -62,7 +62,12 @@
               <select name="codigo_exame" id="selExame" class="form-select" required>
                 <option value="">— Selecione o exame —</option>
                 {% for ex in exames %}
-                <option value="{{ ex.codigo }}">{{ ex.codigo }} – {{ ex.descricao }}</option>
+                <option value="{{ ex.codigo }}"
+                        data-valor="{{ ex.valor_unitario }}"
+                        data-desc="{{ ex.descricao }}"
+                        data-qtd="{{ ex.quantidade_contratada }}">
+                  {{ ex.codigo }} – {{ ex.descricao }}
+                </option>
                 {% endfor %}
               </select>
             </div>
@@ -218,23 +223,37 @@ sel.addEventListener('change', function(){
     calcTotal();
     return;
   }
+  // Pega preço e dados direto do HTML (instantâneo, sem API)
+  const opt   = this.options[this.selectedIndex];
+  const valor = parseFloat(opt.dataset.valor) || 0;
+  const qtdContratada = parseInt(opt.dataset.qtd) || 0;
+  const desc  = opt.dataset.desc || opt.text;
+  vu.value = valor.toFixed(2);
+  calcTotal();
+
+  // Busca saldo usado via API
   fetch('/api/exame/'+cod)
     .then(r=>r.json())
     .then(d=>{
       if(d.erro){ infoDiv.style.display='none'; return; }
-      vu.value = d.valor_unitario.toFixed(2);
       saldoAtual = d.saldo;
-      calcTotal();
       const saldo = d.saldo;
       const cls   = saldo <= 0 ? 'danger' : saldo <= 5 ? 'warning' : 'info';
       infoBox.className = `alert alert-${cls} py-2 mb-0`;
-      infoBox.innerHTML = `<i class="bi bi-clipboard2-pulse me-1"></i><strong>${d.descricao}</strong><br>
-        Qtde contratada: <b>${d.qtd_contratada}</b> &nbsp;|&nbsp;
+      infoBox.innerHTML = `<i class="bi bi-clipboard2-pulse me-1"></i><strong>${desc}</strong><br>
+        Qtde contratada: <b>${qtdContratada}</b> &nbsp;|&nbsp;
         Usada: <b>${d.qtd_usada}</b> &nbsp;|&nbsp;
-        Saldo: <b class="${saldo<=0?'text-danger':'saldo<=5?text-warning':'text-success'}">${saldo}</b>
+        Saldo: <b class="${saldo<=0?'text-danger':saldo<=5?'text-warning':'text-success'}">${saldo}</b>
         ${saldo<=0 ? ' <span class="badge bg-danger ms-1">ESGOTADO</span>' : saldo<=5 ? ' <span class="badge bg-warning text-dark ms-1">CRÍTICO</span>' : ''}`;
       infoDiv.style.display='';
       verificarSaldo();
+    })
+    .catch(()=>{
+      // Se API falhar, mostra info básica e permite salvar
+      saldoAtual = 9999;
+      infoBox.className = 'alert alert-info py-2 mb-0';
+      infoBox.innerHTML = `<i class="bi bi-clipboard2-pulse me-1"></i><strong>${desc}</strong> — R$ ${valor.toFixed(2).replace('.',',')}`;
+      infoDiv.style.display='';
     });
 });
 
