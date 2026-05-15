@@ -144,6 +144,9 @@ def init_db():
             "INSERT OR IGNORE INTO exames(codigo,descricao,tipo,valor_unitario,quantidade_contratada) VALUES(?,?,?,?,?)",
             EXAMES_CONTRATO)
     conn.execute("INSERT OR IGNORE INTO orcamento(ano,valor) VALUES(?,?)", (CONTRATO_ANO, CONTRATO_VALOR))
+    # Garante orçamento para o ano atual também
+    ano_atual = date.today().year
+    conn.execute("INSERT OR IGNORE INTO orcamento(ano,valor) VALUES(?,?)", (ano_atual, CONTRATO_VALOR))
     conn.commit(); conn.close()
 
 # ── Utilitários ────────────────────────────────────────────────────────────────
@@ -168,7 +171,7 @@ app.jinja_env.globals.update(fmt_brl=fmt_brl, fmt_data=fmt_data,
 # ── Rotas ──────────────────────────────────────────────────────────────────────
 @app.route("/")
 def dashboard():
-    ano = CONTRATO_ANO
+    ano = int(request.args.get("ano", date.today().year))
     db = get_db()
     orc = (db.execute("SELECT valor FROM orcamento WHERE ano=?", (ano,)).fetchone() or [CONTRATO_VALOR])[0]
     gasto = db.execute(
@@ -234,8 +237,9 @@ def autorizacao():
         flash(f"✅ Autorização salva! Paciente: {pac} | Exame: {desc} | Valor: {fmt_brl(total)}","success")
         return redirect(url_for("autorizacao"))
     # Saldo financeiro
-    orc  = (db.execute("SELECT valor FROM orcamento WHERE ano=?", (CONTRATO_ANO,)).fetchone() or [CONTRATO_VALOR])[0]
-    gasto = db.execute("SELECT COALESCE(SUM(valor_total),0) FROM autorizacoes WHERE status!='CANCELADO' AND strftime('%Y',data_autorizacao)=?", (str(CONTRATO_ANO),)).fetchone()[0]
+    ano_atual = date.today().year
+    orc  = (db.execute("SELECT valor FROM orcamento WHERE ano=?", (ano_atual,)).fetchone() or [CONTRATO_VALOR])[0]
+    gasto = db.execute("SELECT COALESCE(SUM(valor_total),0) FROM autorizacoes WHERE status!='CANCELADO' AND strftime('%Y',data_autorizacao)=?", (str(ano_atual),)).fetchone()[0]
     db.close()
     return render_template("autorizacao.html", exames=exames, orc=orc, gasto=gasto,
                            saldo=orc-gasto, hoje_str=date.today().strftime("%d/%m/%Y"))
