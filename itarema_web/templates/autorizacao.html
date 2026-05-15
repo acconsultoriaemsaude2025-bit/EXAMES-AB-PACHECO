@@ -42,8 +42,19 @@
                      placeholder="Nome completo do paciente" required>
             </div>
             <div class="col-md-4">
-              <label class="form-label fw-semibold">CPF / CNS</label>
-              <input name="cpf_cns" type="text" class="form-control" placeholder="000.000.000-00">
+              <label class="form-label fw-semibold">Identificação do Paciente</label>
+              <div class="input-group">
+                <select id="tipoDoc" class="form-select" style="max-width:80px" title="Tipo de documento">
+                  <option value="CPF">CPF</option>
+                  <option value="CNS">CNS</option>
+                </select>
+                <input name="cpf_cns" id="docInput" type="text" class="form-control"
+                       placeholder="000.000.000-00" maxlength="18" autocomplete="off">
+                <span class="input-group-text px-2" id="docStatus" title="">
+                  <i class="bi bi-dash-circle text-secondary" id="docIcon"></i>
+                </span>
+              </div>
+              <div id="docFeedback" class="form-text" style="font-size:.75rem"></div>
             </div>
             <!-- Linha 3 – Exame -->
             <div class="col-12">
@@ -187,5 +198,136 @@ sel.addEventListener('change', function(){
     });
 });
 qtde.addEventListener('input', calcTotal);
+
+// ── Validação CPF / CNS ────────────────────────────────────────────────────
+const tipoDoc    = document.getElementById('tipoDoc');
+const docInput   = document.getElementById('docInput');
+const docIcon    = document.getElementById('docIcon');
+const docFeedback= document.getElementById('docFeedback');
+
+function validarCPF(cpf) {
+  cpf = cpf.replace(/\D/g,'');
+  if (cpf.length !== 11) return false;
+  if (/^(\d)\1+$/.test(cpf)) return false; // todos dígitos iguais
+  let soma = 0;
+  for (let i = 0; i < 9; i++) soma += parseInt(cpf[i]) * (10 - i);
+  let r = (soma * 10) % 11;
+  if (r === 10 || r === 11) r = 0;
+  if (r !== parseInt(cpf[9])) return false;
+  soma = 0;
+  for (let i = 0; i < 10; i++) soma += parseInt(cpf[i]) * (11 - i);
+  r = (soma * 10) % 11;
+  if (r === 10 || r === 11) r = 0;
+  return r === parseInt(cpf[10]);
+}
+
+function validarCNS(cns) {
+  cns = cns.replace(/\D/g,'');
+  if (cns.length !== 15) return false;
+  // CNS deve começar com 1, 2 ou 7, 8, 9
+  if (!/^[1278]/.test(cns)) return false;
+  // Algoritmo de validação do CNS
+  function mod11(s){
+    let soma = 0;
+    for(let i=0;i<s.length;i++) soma += parseInt(s[i])*(s.length+1-i);
+    return soma % 11;
+  }
+  if (cns[0]==='7'||cns[0]==='8'||cns[0]==='9'){
+    return mod11(cns) === 0;
+  } else {
+    const pis = cns.substring(0,11);
+    let soma = 0;
+    for(let i=0;i<11;i++) soma += parseInt(pis[i])*(15-i);
+    let dsc = 0, resto = soma % 11;
+    let resultado = resto !== 0 ? 11 - resto : 0;
+    let inicioSns = resultado === 10
+      ? pis + '001' + String(11 - ((soma + 3*1 + 1*2 + 0*1) % 11)).padStart(1,'0')
+      : pis + '000' + String(resultado).padStart(1,'0');
+    return cns === inicioSns.substring(0,15);
+  }
+}
+
+function mascaraCPF(v){
+  v = v.replace(/\D/g,'').substring(0,11);
+  v = v.replace(/(\d{3})(\d)/,'$1.$2');
+  v = v.replace(/(\d{3})(\d)/,'$1.$2');
+  v = v.replace(/(\d{3})(\d{1,2})$/,'$1-$2');
+  return v;
+}
+
+function mascaraCNS(v){
+  v = v.replace(/\D/g,'').substring(0,15);
+  v = v.replace(/(\d{3})(\d)/,'$1 $2');
+  v = v.replace(/(\d{4})(\d)/,'$1 $2');
+  v = v.replace(/(\d{4})(\d)/,'$1 $2');
+  return v;
+}
+
+function setStatus(ok, msg, vazio){
+  if(vazio){
+    docIcon.className = 'bi bi-dash-circle text-secondary';
+    docFeedback.textContent = '';
+    docFeedback.className = 'form-text';
+    return;
+  }
+  if(ok){
+    docIcon.className = 'bi bi-check-circle-fill text-success';
+    docFeedback.textContent = msg;
+    docFeedback.className = 'form-text text-success fw-semibold';
+  } else {
+    docIcon.className = 'bi bi-x-circle-fill text-danger';
+    docFeedback.textContent = msg;
+    docFeedback.className = 'form-text text-danger fw-semibold';
+  }
+}
+
+tipoDoc.addEventListener('change', function(){
+  docInput.value = '';
+  setStatus(false,'',true);
+  if(this.value==='CPF'){
+    docInput.placeholder='000.000.000-00';
+    docInput.maxLength=14;
+  } else {
+    docInput.placeholder='000 0000 0000 0000';
+    docInput.maxLength=18;
+  }
+});
+
+docInput.addEventListener('input', function(){
+  let v = this.value;
+  const tipo = tipoDoc.value;
+  if(tipo==='CPF'){
+    v = mascaraCPF(v);
+    this.value = v;
+    const digits = v.replace(/\D/g,'');
+    if(digits.length===0){ setStatus(false,'',true); return; }
+    if(digits.length<11){ setStatus(false,'Continue digitando… ('+digits.length+'/11)',false); return; }
+    if(validarCPF(v)) setStatus(true,'✔ CPF válido',false);
+    else setStatus(false,'✘ CPF inválido — verifique o número',false);
+  } else {
+    v = mascaraCNS(v);
+    this.value = v;
+    const digits = v.replace(/\D/g,'');
+    if(digits.length===0){ setStatus(false,'',true); return; }
+    if(digits.length<15){ setStatus(false,'Continue digitando… ('+digits.length+'/15)',false); return; }
+    if(validarCNS(v)) setStatus(true,'✔ CNS válido',false);
+    else setStatus(false,'✘ CNS inválido — verifique o número',false);
+  }
+});
+
+// Bloqueia submit se doc preenchido mas inválido
+document.getElementById('frmAut').addEventListener('submit', function(e){
+  const v = docInput.value.replace(/\D/g,'');
+  if(v.length === 0) return; // campo vazio = ok (não obrigatório)
+  const tipo = tipoDoc.value;
+  const valido = tipo==='CPF' ? validarCPF(docInput.value) : validarCNS(docInput.value);
+  if(!valido){
+    e.preventDefault();
+    docInput.focus();
+    setStatus(false,'✘ '+(tipo==='CPF'?'CPF':'CNS')+' inválido — corrija antes de salvar',false);
+    docInput.classList.add('is-invalid');
+    setTimeout(()=>docInput.classList.remove('is-invalid'),3000);
+  }
+});
 </script>
 {% endblock %}
