@@ -110,9 +110,19 @@
   <div class="flex-grow-1 py-2">
     {% if session.usuario_perfil == 'prestador' %}
     <!-- MENU PRESTADOR -->
-    <div class="section-label">Prestador</div>
+    <div class="section-label">Principal</div>
     <a href="{{ url_for('confirmar_exames') }}" class="nav-link {% if request.endpoint=='confirmar_exames' %}active{% endif %}">
       <i class="bi bi-check2-square"></i> Confirmar Exames
+    </a>
+    <a href="{{ url_for('historico') }}" class="nav-link {% if request.endpoint=='historico' %}active{% endif %}">
+      <i class="bi bi-list-ul"></i> Histórico
+    </a>
+    <div class="section-label">Relatórios</div>
+    <a href="{{ url_for('saldo_exames') }}" class="nav-link {% if request.endpoint=='saldo_exames' %}active{% endif %}">
+      <i class="bi bi-bar-chart-line"></i> Saldo por Exame
+    </a>
+    <a href="{{ url_for('relatorio') }}" class="nav-link {% if request.endpoint=='relatorio' %}active{% endif %}">
+      <i class="bi bi-file-earmark-bar-graph"></i> Relatório Mensal
     </a>
     {% else %}
     <!-- MENU ADMIN / OPERADOR -->
