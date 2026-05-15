@@ -149,6 +149,13 @@ def init_db():
             ativo INTEGER DEFAULT 1,
             criado_em TEXT
         );
+        CREATE TABLE IF NOT EXISTS reset_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            login TEXT NOT NULL,
+            token TEXT NOT NULL,
+            expira_em TEXT NOT NULL,
+            usado INTEGER DEFAULT 0
+        );
     """)
     if conn.execute("SELECT COUNT(*) FROM exames").fetchone()[0] == 0:
         conn.executemany(
@@ -236,6 +243,54 @@ def logout():
     session.clear()
     flash("Sessão encerrada.", "info")
     return redirect(url_for("login"))
+
+@app.route("/recuperar-senha", methods=["GET","POST"])
+def recuperar_senha():
+    if request.method == "POST":
+        login_u = request.form.get("login","").strip()
+        db = get_db()
+        user = db.execute("SELECT * FROM usuarios WHERE login=? AND ativo=1", (login_u,)).fetchone()
+        if not user:
+            db.close()
+            flash("Login não encontrado ou usuário inativo.", "danger")
+            return render_template("recuperar_senha.html")
+        # Gera código de 6 dígitos válido por 30 minutos
+        import random
+        codigo = str(random.randint(100000, 999999))
+        expira = (datetime.now() + __import__('datetime').timedelta(minutes=30)).strftime("%Y-%m-%d %H:%M:%S")
+        db.execute("UPDATE reset_tokens SET usado=1 WHERE login=?", (login_u,))
+        db.execute("INSERT INTO reset_tokens(login,token,expira_em) VALUES(?,?,?)", (login_u, codigo, expira))
+        db.commit(); db.close()
+        return render_template("recuperar_senha.html", codigo=codigo, login=login_u)
+    return render_template("recuperar_senha.html")
+
+@app.route("/nova-senha", methods=["GET","POST"])
+def nova_senha():
+    if request.method == "POST":
+        login_u = request.form.get("login","").strip()
+        codigo  = request.form.get("codigo","").strip()
+        nova    = request.form.get("nova_senha","").strip()
+        conf    = request.form.get("confirmar_senha","").strip()
+        if not nova or len(nova) < 6:
+            flash("A senha deve ter pelo menos 6 caracteres.", "danger")
+            return render_template("nova_senha.html")
+        if nova != conf:
+            flash("As senhas não coincidem.", "danger")
+            return render_template("nova_senha.html")
+        db = get_db()
+        token = db.execute(
+            "SELECT * FROM reset_tokens WHERE login=? AND token=? AND usado=0 AND expira_em > datetime('now','localtime')",
+            (login_u, codigo)).fetchone()
+        if not token:
+            db.close()
+            flash("Código inválido ou expirado. Solicite um novo código.", "danger")
+            return render_template("nova_senha.html")
+        db.execute("UPDATE usuarios SET senha_hash=? WHERE login=?", (hash_senha(nova), login_u))
+        db.execute("UPDATE reset_tokens SET usado=1 WHERE id=?", (token["id"],))
+        db.commit(); db.close()
+        flash("✅ Senha redefinida com sucesso! Faça login com a nova senha.", "success")
+        return redirect(url_for("login"))
+    return render_template("nova_senha.html")
 
 @app.route("/usuarios", methods=["GET","POST"])
 @admin_required
