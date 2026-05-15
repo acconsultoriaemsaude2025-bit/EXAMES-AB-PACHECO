@@ -619,22 +619,24 @@ def api_exame(codigo):
 @login_required
 def historico():
     db  = get_db()
-    pac = request.args.get("paciente","")
-    st  = request.args.get("status","")
-    mes = request.args.get("mes","")
-    exame = request.args.get("exame","")
+    pac     = request.args.get("paciente","")
+    st      = request.args.get("status","")
+    mes     = request.args.get("mes","")
+    exame   = request.args.get("exame","")
+    cpf_cns = request.args.get("cpf_cns","").strip()
     q  = "SELECT * FROM autorizacoes WHERE 1=1"
     p  = []
-    if pac:   q += " AND nome_paciente LIKE ?";   p.append(f"%{pac}%")
-    if st:    q += " AND status=?";               p.append(st)
-    if mes:   q += " AND strftime('%m',data_autorizacao)=?"; p.append(mes.zfill(2))
-    if exame: q += " AND (descricao_exame LIKE ? OR codigo_exame LIKE ?)"; p += [f"%{exame}%"]*2
+    if pac:     q += " AND nome_paciente LIKE ?";   p.append(f"%{pac}%")
+    if st:      q += " AND status=?";               p.append(st)
+    if mes:     q += " AND strftime('%m',data_autorizacao)=?"; p.append(mes.zfill(2))
+    if exame:   q += " AND (descricao_exame LIKE ? OR codigo_exame LIKE ?)"; p += [f"%{exame}%"]*2
+    if cpf_cns: q += " AND cpf_cns LIKE ?"; p.append(f"%{cpf_cns.replace('.','').replace('-','').replace(' ','')}%")
     q += " ORDER BY data_autorizacao DESC, id DESC"
     rows = db.execute(q, p).fetchall()
     total_v = sum(r["valor_total"] for r in rows if r["status"] != "CANCELADO")
     db.close()
     return render_template("historico.html", rows=rows, total_v=total_v,
-                           filtros={"paciente":pac,"status":st,"mes":mes,"exame":exame},
+                           filtros={"paciente":pac,"status":st,"mes":mes,"exame":exame,"cpf_cns":cpf_cns},
                            uid_atual=int(session.get("usuario_id") or 0),
                            perfil_atual=session.get("usuario_perfil",""))
 
