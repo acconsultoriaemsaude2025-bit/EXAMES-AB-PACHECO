@@ -17,7 +17,7 @@
     <table class="table table-hover table-sm mb-0" id="tblSaldo">
       <thead>
         <tr>
-          <th>Código</th><th>Descrição</th><th>Tipo</th>
+          <th style="min-width:130px">Código</th><th>Descrição</th><th>Tipo</th>
           <th class="text-center">Contratado</th>
           <th class="text-center">Utilizado</th>
           <th class="text-center">Saldo</th>
@@ -33,7 +33,7 @@
         {% set pct = (r.usada / r.quantidade_contratada * 100) if r.quantidade_contratada > 0 else 0 %}
         {% set cor = 'danger' if saldo <= 0 else ('warning' if pct >= 90 else 'success') %}
         <tr>
-          <td><code>{{ r.codigo }}</code></td>
+          <td><code style="white-space:nowrap">{{ r.codigo }}</code></td>
           <td>{{ r.descricao }}</td>
           <td><span class="badge bg-secondary">{{ r.tipo }}</span></td>
           <td class="text-center">{{ r.quantidade_contratada }}</td>

@@ -33,10 +33,10 @@
         <form method="post" id="frmAut">
           <div class="row g-2 mb-3">
             <!-- Nº / Data / Status -->
-            <div class="col-md-4">
-              <label class="form-label fw-semibold">Nº Autorização</label>
-              <div class="form-control bg-light text-muted" style="font-size:.88rem">
-                <i class="bi bi-hash me-1"></i>Gerado automaticamente
+            <div class="col-md-2">
+              <label class="form-label fw-semibold">Nº Aut.</label>
+              <div class="form-control bg-light text-muted" style="font-size:.78rem">
+                <i class="bi bi-hash me-1"></i>Automático
               </div>
             </div>
             <div class="col-md-3">
@@ -242,9 +242,9 @@ function criarLinha() {
         <input type="text" class="form-control form-control-sm val-unit" readonly value="0,00"
                style="font-size:.78rem">
       </div>
-      <div class="col-4 col-md-1">
+      <div class="col-4 col-md-2">
         <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Total</label>
-        <input type="text" class="form-control form-control-sm total-linha" readonly value="R$ 0,00">
+        <input type="text" class="form-control form-control-sm total-linha fw-bold text-success" readonly value="R$ 0,00">
       </div>
       <div class="col-12 col-md-1 text-end">
         <button type="button" class="btn btn-sm btn-outline-danger btn-remover w-100" data-id="${id}" title="Remover">
