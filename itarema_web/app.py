@@ -788,19 +788,19 @@ def exportar(ano):
     db   = get_db()
     rows = db.execute("""SELECT data_autorizacao,numero_autorizacao,nome_paciente,cpf_cns,
                                 codigo_exame,descricao_exame,quantidade_liberada,valor_unitario,
-                                valor_total,responsavel,status,observacoes
+                                valor_total,responsavel,status,observacoes,justificativa
                          FROM autorizacoes WHERE strftime('%Y',data_autorizacao)=?
                          ORDER BY data_autorizacao,id""", (str(ano),)).fetchall()
     db.close()
     wb = openpyxl.Workbook(); ws = wb.active; ws.title = f"Autorizações {ano}"
-    hdrs = ["Data","Nº Aut.","Paciente","CPF/CNS","Código","Descrição Exame","Qtde","Val.Unit","Val.Total","Responsável","Status","Obs"]
+    hdrs = ["Data","Nº Aut.","Paciente","CPF/CNS","Código","Descrição Exame","Qtde","Val.Unit","Val.Total","Responsável","Status","Obs","Justificativa"]
     for c, h in enumerate(hdrs,1):
         cell = ws.cell(1,c,h)
         cell.font = Font(bold=True,color="FFFFFF",name="Arial")
         cell.fill = PatternFill("solid",fgColor="1F3864")
         cell.alignment = Alignment(horizontal="center")
     for ri, r in enumerate(rows,2):
-        vals = [fmt_data(r[0]),r[1] or "",r[2],r[3] or "",r[4],r[5] or "",r[6],r[7],r[8],r[9] or "",r[10] or "",r[11] or ""]
+        vals = [fmt_data(r[0]),r[1] or "",r[2],r[3] or "",r[4],r[5] or "",r[6],r[7],r[8],r[9] or "",r[10] or "",r[11] or "",r[12] or ""]
         for ci, v in enumerate(vals,1):
             cell = ws.cell(ri,ci,v)
             if ci in (8,9): cell.number_format = 'R$ #,##0.00'
