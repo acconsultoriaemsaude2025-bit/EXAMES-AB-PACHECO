@@ -39,12 +39,35 @@
                 <i class="bi bi-hash me-1"></i>Gerado automaticamente
               </div>
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
               <label class="form-label fw-semibold">Data <span class="text-danger">*</span></label>
               <input type="date" id="datePicker" name="data_autorizacao_iso" class="form-control" required>
               <input type="hidden" name="data_autorizacao" id="dataAut">
             </div>
-            <div class="col-md-4">
+            <div class="col-md-3">
+              <label class="form-label fw-semibold">Justificativa <span class="text-danger">*</span></label>
+              <div class="dropdown">
+                <button class="btn btn-outline-secondary w-100 text-start d-flex justify-content-between align-items-center"
+                        type="button" id="dropJust" data-bs-toggle="dropdown" data-bs-auto-close="outside"
+                        style="font-size:.85rem">
+                  <span id="justLabel">Selecione…</span>
+                  <i class="bi bi-chevron-down"></i>
+                </button>
+                <ul class="dropdown-menu w-100 p-2 shadow" style="font-size:.85rem">
+                  {% for op in [('DIABÉTICO','heart-pulse'),('HIPERTENSO','activity'),
+                                ('GESTANTE','person-standing-dress'),('GESTANTE DE ALTO RISCO','exclamation-triangle'),
+                                ('INTERNADO','hospital'),('PÚBLICO GERAL','people')] %}
+                  <li>
+                    <label class="dropdown-item d-flex align-items-center gap-2 py-1" style="cursor:pointer">
+                      <input type="checkbox" name="justificativa" value="{{ op[0] }}" class="just-check form-check-input mt-0">
+                      <i class="bi bi-{{ op[1] }} text-primary"></i> {{ op[0] }}
+                    </label>
+                  </li>
+                  {% endfor %}
+                </ul>
+              </div>
+            </div>
+            <div class="col-md-2">
               <label class="form-label fw-semibold">Status</label>
               <select name="status" class="form-select">
                 <option value="AUTORIZADO">AUTORIZADO</option>
@@ -371,6 +394,16 @@ function resetForm(){
   const y=h.getFullYear(),m=String(h.getMonth()+1).padStart(2,'0'),d=String(h.getDate()).padStart(2,'0');
   datePicker.value=`${y}-${m}-${d}`; dataAut.value=`${d}/${m}/${y}`;
 }
+
+// ── Justificativa (multi-select) ───────────────────────────────────────────
+document.querySelectorAll('.just-check').forEach(cb => {
+  cb.addEventListener('change', function() {
+    const selecionados = [...document.querySelectorAll('.just-check:checked')].map(c => c.value);
+    document.getElementById('justLabel').textContent = selecionados.length
+      ? selecionados.join(', ')
+      : 'Selecione…';
+  });
+});
 
 // ── CPF / CNS ──────────────────────────────────────────────────────────────
 const tipoDoc=document.getElementById('tipoDoc'),docInput=document.getElementById('docInput');

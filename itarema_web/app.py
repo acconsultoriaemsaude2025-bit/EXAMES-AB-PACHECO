@@ -176,6 +176,7 @@ def init_db():
     cols = [r[1] for r in conn.execute("PRAGMA table_info(autorizacoes)").fetchall()]
     if "criado_por_id"   not in cols: conn.execute("ALTER TABLE autorizacoes ADD COLUMN criado_por_id INTEGER")
     if "criado_por_nome" not in cols: conn.execute("ALTER TABLE autorizacoes ADD COLUMN criado_por_nome TEXT")
+    if "justificativa"   not in cols: conn.execute("ALTER TABLE autorizacoes ADD COLUMN justificativa TEXT")
     if conn.execute("SELECT COUNT(*) FROM exames").fetchone()[0] == 0:
         conn.executemany(
             "INSERT OR IGNORE INTO exames(codigo,descricao,tipo,valor_unitario,quantidade_contratada) VALUES(?,?,?,?,?)",
@@ -493,8 +494,9 @@ def autorizacao():
         data_db  = parse_data(request.form.get("data_autorizacao",""))
         pac      = request.form.get("nome_paciente","").strip()
         resp     = request.form.get("responsavel","").strip()
-        cpf_cns  = request.form.get("cpf_cns","").strip() or None
-        obs      = request.form.get("observacoes","").strip() or None
+        cpf_cns       = request.form.get("cpf_cns","").strip() or None
+        obs           = request.form.get("observacoes","").strip() or None
+        justificativa = ",".join(request.form.getlist("justificativa")) or None
         # Gera número de autorização automático: ANO-SEQUENCIAL (ex: 2026-0001)
         ano_atual = date.today().year
         ultimo = db.execute(
@@ -580,11 +582,11 @@ def autorizacao():
             db.execute("""INSERT INTO autorizacoes
                 (numero_autorizacao,data_autorizacao,nome_paciente,cpf_cns,codigo_exame,
                  descricao_exame,quantidade_liberada,valor_unitario,valor_total,
-                 responsavel,status,observacoes,criado_por_id,criado_por_nome)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                 responsavel,status,observacoes,justificativa,criado_por_id,criado_por_nome)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (num_aut, data_db, pac, cpf_cns,
                  item["cod"], item["desc"], item["qtde"], item["vu"], item["total"],
-                 resp, status_form, obs,
+                 resp, status_form, obs, justificativa,
                  session.get("usuario_id"), session.get("usuario_nome")))
             total_geral += item["total"]
 
@@ -669,14 +671,15 @@ def editar_aut(id):
     if request.method == "POST":
         data_db = parse_data(request.form.get("data_autorizacao",""))
         if not data_db: flash("Data inválida.","danger"); return redirect(url_for("editar_aut", id=id))
+        just = ",".join(request.form.getlist("justificativa")) or None
         db.execute("""UPDATE autorizacoes SET numero_autorizacao=?,data_autorizacao=?,
-                      nome_paciente=?,cpf_cns=?,responsavel=?,observacoes=?,status=? WHERE id=?""",
+                      nome_paciente=?,cpf_cns=?,responsavel=?,observacoes=?,status=?,justificativa=? WHERE id=?""",
             (request.form.get("numero_autorizacao","").strip() or None, data_db,
              request.form.get("nome_paciente","").strip(),
              request.form.get("cpf_cns","").strip() or None,
              request.form.get("responsavel","").strip() or None,
              request.form.get("observacoes","").strip() or None,
-             request.form.get("status","AUTORIZADO"), id))
+             request.form.get("status","AUTORIZADO"), just, id))
         db.commit(); db.close()
         flash("✅ Autorização atualizada!","success"); return redirect(url_for("historico"))
     row = db.execute("SELECT * FROM autorizacoes WHERE id=?", (id,)).fetchone()
@@ -748,9 +751,18 @@ def relatorio():
         acum += v
         dados.append({"mes": nome, "qtd": q, "valor": v, "acumulado": acum,
                       "pct": (v/orc*100) if orc > 0 else 0})
+    # Contagem por justificativa
+    JUST_OPCOES = ["DIABÉTICO","HIPERTENSO","GESTANTE","GESTANTE DE ALTO RISCO","INTERNADO","PÚBLICO GERAL"]
+    just_contagem = {}
+    todas = db.execute(
+        "SELECT justificativa FROM autorizacoes WHERE strftime('%Y',data_autorizacao)=? AND status!='CANCELADO'",
+        (str(ano),)).fetchall()
+    for opcao in JUST_OPCOES:
+        just_contagem[opcao] = sum(1 for r in todas if r["justificativa"] and opcao in r["justificativa"].split(","))
     db.close()
     return render_template("relatorio.html", dados=dados, ano=ano, orc=orc,
-                           anos=list(range(2022, 2031)))
+                           anos=list(range(2022, 2031)),
+                           just_contagem=just_contagem, just_opcoes=JUST_OPCOES)
 
 @app.route("/orcamento", methods=["POST"])
 @login_required

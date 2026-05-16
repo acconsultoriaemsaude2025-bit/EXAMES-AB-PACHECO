@@ -22,6 +22,31 @@
   </div>
 </div>
 
+<!-- Justificativas -->
+<div class="card mb-3">
+  <div class="card-header bg-white fw-semibold">
+    <i class="bi bi-people me-2"></i>Autorizações por Justificativa — {{ ano }}
+  </div>
+  <div class="card-body py-2">
+    <div class="row g-2">
+      {% set total_just = just_contagem.values()|sum %}
+      {% for opcao in just_opcoes %}
+      {% set cnt = just_contagem[opcao] %}
+      {% set pct = (cnt / total_just * 100) if total_just > 0 else 0 %}
+      <div class="col-md-4 col-6">
+        <div class="d-flex justify-content-between mb-1" style="font-size:.82rem">
+          <span class="fw-semibold">{{ opcao }}</span>
+          <span class="text-muted">{{ cnt }} ({{ "%.1f"|format(pct) }}%)</span>
+        </div>
+        <div class="progress mb-1" style="height:10px;border-radius:5px">
+          <div class="progress-bar bg-primary" style="width:{{ pct }}%"></div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
 <!-- Gráfico -->
 <div class="card mb-3">
   <div class="card-body">

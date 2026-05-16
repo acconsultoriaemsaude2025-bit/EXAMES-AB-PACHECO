@@ -65,7 +65,7 @@
         <tr>
           <th>ID</th><th>Data</th><th>Paciente</th><th>Exame</th>
           <th>Qtde</th><th class="text-end">Val.Unit</th><th class="text-end">Val.Total</th>
-          <th>Resp.</th><th>Status</th><th>Ações</th>
+          <th>Resp.</th><th>Justificativa</th><th>Status</th><th>Ações</th>
         </tr>
       </thead>
       <tbody>
@@ -82,6 +82,13 @@
           <td class="text-end">{{ fmt_brl(r.valor_unitario) }}</td>
           <td class="text-end fw-semibold">{{ fmt_brl(r.valor_total) }}</td>
           <td>{{ r.responsavel or '' }}</td>
+          <td style="font-size:.75rem">
+            {% if r.justificativa %}
+              {% for j in r.justificativa.split(',') %}
+                <span class="badge bg-light text-dark border">{{ j }}</span>
+              {% endfor %}
+            {% else %}—{% endif %}
+          </td>
           <td>
             {% set st = r.status %}
             {% if st == 'AUTORIZADO' %}<span class="badge bg-primary">{{ st }}</span>
@@ -112,7 +119,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="10" class="text-center text-muted py-4">Nenhuma autorização encontrada.</td></tr>
+        <tr><td colspan="11" class="text-center text-muted py-4">Nenhuma autorização encontrada.</td></tr>
         {% endfor %}
       </tbody>
     </table>
