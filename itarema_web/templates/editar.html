@@ -73,12 +73,13 @@
               <label class="form-label fw-semibold">Justificativa</label>
               <div class="d-flex flex-wrap gap-2">
                 {% set just_atual = (row.justificativa or '').split(',') %}
-                {% for op in ['DIABÉTICO','HIPERTENSO','GESTANTE','GESTANTE DE ALTO RISCO','INTERNADO','PÚBLICO GERAL'] %}
+                {% for op, icon in JUST_OPCOES %}
                 <div class="form-check form-check-inline">
                   <input class="form-check-input" type="radio" name="justificativa"
                          value="{{ op }}" id="edit_just_{{ loop.index }}"
                          {% if op in just_atual %}checked{% endif %}>
                   <label class="form-check-label" for="edit_just_{{ loop.index }}">{{ op }}</label>
+
                 </div>
                 {% endfor %}
               </div>

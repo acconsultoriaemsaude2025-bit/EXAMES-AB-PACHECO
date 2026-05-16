@@ -108,9 +108,9 @@
          onerror="this.style.display='none';document.getElementById('brandFallback').style.display='block'">
     <span id="brandFallback" style="display:none">
       <i class="bi bi-hospital fs-1 text-warning"></i><br>
-      Secretaria Municipal<br>de Saúde – Itarema/CE
+      {{ SECRETARIA_NOME }}<br>– {{ MUNICIPIO_NOME }}/{{ MUNICIPIO_UF }}
     </span>
-    <span style="display:block;font-size:.72rem;opacity:.7;margin-top:4px">Controle de Exames Lab.</span>
+    <span style="display:block;font-size:.72rem;opacity:.7;margin-top:4px">{{ SISTEMA_SUBTITULO }}</span>
   </div>
   <div class="flex-grow-1 py-2">
     {% if session.usuario_perfil == 'prestador' %}
