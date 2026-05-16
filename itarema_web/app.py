@@ -6,7 +6,6 @@ Sistema Web – Contrato Nº 004/2023-SMS-02
 """
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session
-from flask_mail import Mail, Message
 import sqlite3, os, io, hashlib, secrets
 from datetime import datetime, date, timedelta
 from functools import wraps
@@ -24,15 +23,7 @@ app.config.update(
     SESSION_COOKIE_SECURE    = False,
     PERMANENT_SESSION_LIFETIME = timedelta(hours=8),
     # ── Flask-Mail (Gmail) ────────────────────────────────────────────────────
-    MAIL_SERVER   = "smtp.gmail.com",
-    MAIL_PORT     = 465,
-    MAIL_USE_TLS  = False,
-    MAIL_USE_SSL  = True,
-    MAIL_USERNAME = os.environ.get("MAIL_USERNAME", ""),
-    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", ""),
-    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_USERNAME", ""),
 )
-mail = Mail(app)
 
 # Controle de tentativas de login (em memória)
 _tentativas_login = {}   # {ip: {"count": N, "bloqueado_ate": datetime}}
@@ -277,10 +268,13 @@ def recuperar_senha():
         db.commit(); db.close()
         # Envia o código por e-mail
         try:
-            msg = Message(
+            from sendgrid import SendGridAPIClient
+            from sendgrid.helpers.mail import Mail as SGMail
+            sg_msg = SGMail(
+                from_email=os.environ.get("MAIL_FROM", "a.c.consultoriaemsaude2025@gmail.com"),
+                to_emails=user["email"],
                 subject="Recuperação de Senha – Sistema de Exames",
-                recipients=[user["email"]],
-                body=f"""Olá, {user["nome"]}!
+                plain_text_content=f"""Olá, {user["nome"]}!
 
 Você solicitou a redefinição de senha no Sistema de Controle de Exames.
 
@@ -294,7 +288,8 @@ Atenciosamente,
 Secretaria Municipal de Saúde de {MUNICIPIO_NOME}/{MUNICIPIO_UF}
 """
             )
-            mail.send(msg)
+            sg = SendGridAPIClient(os.environ.get("SENDGRID_API_KEY",""))
+            sg.send(sg_msg)
         except BaseException as e:
             flash("Erro ao enviar e-mail. Contate o administrador.", "danger")
             return render_template("recuperar_senha.html")

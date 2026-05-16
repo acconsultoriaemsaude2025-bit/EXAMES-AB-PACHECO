@@ -1,4 +1,4 @@
 flask==3.0.3
 gunicorn==22.0.0
 openpyxl==3.1.4
-Flask-Mail==0.9.1
+sendgrid==6.11.0
