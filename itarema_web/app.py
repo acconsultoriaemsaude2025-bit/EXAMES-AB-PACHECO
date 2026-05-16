@@ -764,6 +764,16 @@ def relatorio():
                            anos=list(range(2022, 2031)),
                            just_contagem=just_contagem, just_opcoes=JUST_OPCOES)
 
+@app.route("/limpar-base", methods=["POST"])
+@admin_required
+def limpar_base():
+    db = get_db()
+    db.execute("DELETE FROM autorizacoes")
+    db.execute("DELETE FROM sqlite_sequence WHERE name='autorizacoes'")
+    db.commit(); db.close()
+    flash("🗑️ Base de autorizações limpa com sucesso! Pronto para uso real.", "warning")
+    return redirect(url_for("historico"))
+
 @app.route("/orcamento", methods=["POST"])
 @login_required
 def set_orcamento():
