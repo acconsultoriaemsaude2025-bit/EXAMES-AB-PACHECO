@@ -25,8 +25,9 @@ app.config.update(
     PERMANENT_SESSION_LIFETIME = timedelta(hours=8),
     # ── Flask-Mail (Gmail) ────────────────────────────────────────────────────
     MAIL_SERVER   = "smtp.gmail.com",
-    MAIL_PORT     = 587,
-    MAIL_USE_TLS  = True,
+    MAIL_PORT     = 465,
+    MAIL_USE_TLS  = False,
+    MAIL_USE_SSL  = True,
     MAIL_USERNAME = os.environ.get("MAIL_USERNAME", ""),
     MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", ""),
     MAIL_DEFAULT_SENDER = os.environ.get("MAIL_USERNAME", ""),
@@ -294,7 +295,7 @@ Secretaria Municipal de Saúde de {MUNICIPIO_NOME}/{MUNICIPIO_UF}
 """
             )
             mail.send(msg)
-        except Exception as e:
+        except BaseException as e:
             flash("Erro ao enviar e-mail. Contate o administrador.", "danger")
             return render_template("recuperar_senha.html")
         flash("Código enviado para o e-mail cadastrado. Verifique sua caixa de entrada.", "success")
