@@ -355,6 +355,12 @@ def usuarios():
             db.execute("UPDATE usuarios SET ativo = CASE WHEN ativo=1 THEN 0 ELSE 1 END WHERE id=?", (uid,))
             db.commit()
             flash("Status do usuário atualizado.", "info")
+        elif acao == "update_email":
+            uid   = request.form.get("uid")
+            email = request.form.get("email","").strip() or None
+            db.execute("UPDATE usuarios SET email=? WHERE id=?", (email, uid))
+            db.commit()
+            flash("✅ E-mail atualizado!", "success")
         elif acao == "reset_senha":
             uid   = request.form.get("uid")
             nova  = request.form.get("nova_senha","").strip()

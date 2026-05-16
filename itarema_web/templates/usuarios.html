@@ -97,6 +97,11 @@
                     <i class="bi bi-{% if u.ativo %}pause-circle{% else %}play-circle{% endif %}"></i>
                   </button>
                 </form>
+                <!-- Editar e-mail -->
+                <button class="btn btn-sm btn-outline-info py-0 px-1" title="Editar e-mail"
+                        onclick="editEmail({{ u.id }}, '{{ u.nome }}', '{{ u.email or '' }}')">
+                  <i class="bi bi-envelope"></i>
+                </button>
                 <!-- Redefinir senha -->
                 <button class="btn btn-sm btn-outline-primary py-0 px-1" title="Redefinir senha"
                         onclick="resetSenha({{ u.id }}, '{{ u.nome }}')">
@@ -133,6 +138,32 @@
   </div>
 </div>
 
+<!-- Modal editar e-mail -->
+<div class="modal fade" id="modalEmail" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h6 class="modal-title"><i class="bi bi-envelope me-1"></i>Editar E-mail</h6>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form method="post">
+        <input type="hidden" name="acao" value="update_email">
+        <input type="hidden" name="uid" id="emailUid">
+        <div class="modal-body">
+          <p class="text-muted mb-2" id="emailNome" style="font-size:.85rem"></p>
+          <label class="form-label">E-mail</label>
+          <input name="email" id="emailInput" type="email" class="form-control" placeholder="usuario@email.com">
+          <small class="text-muted">Usado para recuperação de senha.</small>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+          <button class="btn btn-info btn-sm text-white" type="submit">Salvar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <!-- Modal redefinir senha -->
 <div class="modal fade" id="modalSenha" tabindex="-1">
   <div class="modal-dialog modal-sm">
@@ -161,6 +192,12 @@
 
 {% block scripts %}
 <script>
+function editEmail(uid, nome, email){
+  document.getElementById('emailUid').value = uid;
+  document.getElementById('emailNome').textContent = 'Usuário: ' + nome;
+  document.getElementById('emailInput').value = email;
+  new bootstrap.Modal(document.getElementById('modalEmail')).show();
+}
 function resetSenha(uid, nome){
   document.getElementById('resetUid').value = uid;
   document.getElementById('resetNome').textContent = 'Usuário: ' + nome;
