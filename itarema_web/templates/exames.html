@@ -57,7 +57,7 @@
     <div class="card">
       <div class="card-header bg-white d-flex justify-content-between align-items-center">
         <span><i class="bi bi-table me-2"></i>{{ rows|length }} exames cadastrados</span>
-        <span style="font-size:.8rem" class="text-muted">Total contratado: {{ fmt_brl(rows|sum(attribute='valor_unitario')|float) }}</span>
+        <span style="font-size:.8rem" class="text-muted">Total contratado: {{ fmt_brl(CONTRATO_VALOR) }}</span>
       </div>
       <div class="table-responsive" style="max-height:600px;overflow-y:auto">
         <table class="table table-hover table-sm mb-0">
@@ -81,6 +81,7 @@
                   onclick="editExame('{{ r.codigo }}','{{ r.descricao|replace("'","\\'") }}','{{ r.tipo }}','{{ r.valor_unitario }}','{{ r.quantidade_contratada }}')">
                   <i class="bi bi-pencil"></i>
                 </button>
+                {% if session.usuario_perfil == 'admin' %}
                 <form method="post" style="display:inline"
                       onsubmit="return confirm('Excluir exame {{ r.codigo }}?')">
                   <input type="hidden" name="acao" value="del">
@@ -89,6 +90,7 @@
                     <i class="bi bi-trash"></i>
                   </button>
                 </form>
+                {% endif %}
               </td>
             </tr>
             {% endfor %}

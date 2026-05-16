@@ -649,8 +649,11 @@ def exames():
                        (cod,desc,tipo,val,qtd,cod_orig))
             flash(f"✅ Exame '{cod}' atualizado.","success")
         elif acao == "del":
-            db.execute("DELETE FROM exames WHERE codigo=?", (cod,))
-            flash(f"Exame '{cod}' excluído.","warning")
+            if session.get("usuario_perfil") != "admin":
+                flash("⛔ Apenas administradores podem excluir exames.", "danger")
+            else:
+                db.execute("DELETE FROM exames WHERE codigo=?", (cod,))
+                flash(f"Exame '{cod}' excluído.","warning")
         db.commit()
         return redirect(url_for("exames"))
     rows = db.execute("SELECT * FROM exames ORDER BY codigo").fetchall()
