@@ -13,9 +13,6 @@
     .card-header-custom i { font-size: 2.4rem; color: #f8c300; }
     .card-header-custom h4 { color: #fff; margin: 8px 0 2px; font-weight: 700; }
     .card-header-custom small { color: rgba(255,255,255,.65); font-size: .82rem; }
-    .codigo-box { background: #1F3864; color: #f8c300; font-size: 2.5rem; font-weight: 900;
-                  letter-spacing: .3em; text-align: center; padding: 18px; border-radius: 10px;
-                  font-family: monospace; }
   </style>
 </head>
 <body>
@@ -23,7 +20,7 @@
   <div class="card-header-custom">
     <i class="bi bi-key-fill"></i>
     <h4>Recuperar Senha</h4>
-    <small>Itarema/CE – Controle de Exames Laboratoriais</small>
+    <small>Itarema/CE – Controle de Exames</small>
   </div>
   <div class="card-body p-4">
     {% with msgs = get_flashed_messages(with_categories=true) %}
@@ -32,22 +29,17 @@
       {% endfor %}
     {% endwith %}
 
-    {% if codigo %}
-      <!-- Código gerado com sucesso -->
+    {% if aguardando_codigo %}
+      <!-- Código enviado por e-mail -->
       <div class="text-center mb-3">
-        <i class="bi bi-check-circle-fill text-success" style="font-size:2rem"></i>
-        <p class="mt-2 text-muted" style="font-size:.9rem">
-          Seu código de recuperação foi gerado.<br>
-          <strong>Válido por 30 minutos.</strong>
+        <i class="bi bi-envelope-check-fill text-success" style="font-size:2.5rem"></i>
+        <p class="mt-2" style="font-size:.9rem">
+          Código enviado para o e-mail cadastrado.<br>
+          <strong>Verifique sua caixa de entrada.</strong>
         </p>
       </div>
-      <div class="codigo-box mb-3">{{ codigo }}</div>
-      <div class="alert alert-warning py-2" style="font-size:.82rem">
-        <i class="bi bi-exclamation-triangle me-1"></i>
-        <strong>Anote este código!</strong> Ele será solicitado na próxima etapa para criar sua nova senha.
-      </div>
       <a href="/nova-senha" class="btn btn-primary w-100">
-        <i class="bi bi-shield-lock me-1"></i>Usar código e criar nova senha
+        <i class="bi bi-shield-lock me-1"></i>Inserir código e criar nova senha
       </a>
       <div class="text-center mt-3">
         <a href="/login" style="font-size:.82rem;color:#666;text-decoration:none">
@@ -58,7 +50,7 @@
     {% else %}
       <!-- Formulário de solicitação -->
       <p class="text-muted mb-3" style="font-size:.88rem">
-        Informe seu <strong>login</strong> para gerar um código de recuperação temporário.
+        Informe seu <strong>login</strong>. Se houver um e-mail cadastrado, enviaremos um código de recuperação.
       </p>
       <form method="post">
         <div class="mb-3">
@@ -69,7 +61,7 @@
           </div>
         </div>
         <button type="submit" class="btn btn-primary w-100 py-2">
-          <i class="bi bi-send me-1"></i>Gerar Código de Recuperação
+          <i class="bi bi-send me-1"></i>Enviar Código por E-mail
         </button>
       </form>
       <div class="text-center mt-3">

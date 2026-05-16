@@ -6,6 +6,7 @@ Sistema Web – Contrato Nº 004/2023-SMS-02
 """
 
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file, session
+from flask_mail import Mail, Message
 import sqlite3, os, io, hashlib, secrets
 from datetime import datetime, date, timedelta
 from functools import wraps
@@ -18,11 +19,19 @@ app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
 # ── Configurações de segurança da sessão ──────────────────────────────────────
 app.config.update(
-    SESSION_COOKIE_HTTPONLY  = True,   # JS não acessa o cookie
-    SESSION_COOKIE_SAMESITE  = "Lax",  # Proteção CSRF básica
-    SESSION_COOKIE_SECURE    = False,  # True em produção com HTTPS
-    PERMANENT_SESSION_LIFETIME = timedelta(hours=8),  # Sessão expira em 8h
+    SESSION_COOKIE_HTTPONLY  = True,
+    SESSION_COOKIE_SAMESITE  = "Lax",
+    SESSION_COOKIE_SECURE    = False,
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=8),
+    # ── Flask-Mail (Gmail) ────────────────────────────────────────────────────
+    MAIL_SERVER   = "smtp.gmail.com",
+    MAIL_PORT     = 587,
+    MAIL_USE_TLS  = True,
+    MAIL_USERNAME = os.environ.get("MAIL_USERNAME", ""),
+    MAIL_PASSWORD = os.environ.get("MAIL_PASSWORD", ""),
+    MAIL_DEFAULT_SENDER = os.environ.get("MAIL_USERNAME", ""),
 )
+mail = Mail(app)
 
 # Controle de tentativas de login (em memória)
 _tentativas_login = {}   # {ip: {"count": N, "bloqueado_ate": datetime}}
@@ -96,6 +105,8 @@ def init_db():
     if "criado_por_id"   not in cols: conn.execute("ALTER TABLE autorizacoes ADD COLUMN criado_por_id INTEGER")
     if "criado_por_nome" not in cols: conn.execute("ALTER TABLE autorizacoes ADD COLUMN criado_por_nome TEXT")
     if "justificativa"   not in cols: conn.execute("ALTER TABLE autorizacoes ADD COLUMN justificativa TEXT")
+    ucols = [r[1] for r in conn.execute("PRAGMA table_info(usuarios)").fetchall()]
+    if "email" not in ucols: conn.execute("ALTER TABLE usuarios ADD COLUMN email TEXT")
     if conn.execute("SELECT COUNT(*) FROM exames").fetchone()[0] == 0:
         conn.executemany(
             "INSERT OR IGNORE INTO exames(codigo,descricao,tipo,valor_unitario,quantidade_contratada) VALUES(?,?,?,?,?)",
@@ -252,18 +263,42 @@ def recuperar_senha():
         login_u = request.form.get("login","").strip()
         db = get_db()
         user = db.execute("SELECT * FROM usuarios WHERE login=? AND ativo=1", (login_u,)).fetchone()
-        if not user:
+        # Sempre mostra a mesma mensagem para não revelar se o login existe
+        if not user or not user["email"]:
             db.close()
-            flash("Login não encontrado ou usuário inativo.", "danger")
+            flash("Se o login existir e tiver e-mail cadastrado, você receberá o código em breve.", "info")
             return render_template("recuperar_senha.html")
-        # Gera código de 6 dígitos válido por 30 minutos
         import random
         codigo = str(random.randint(100000, 999999))
-        expira = (datetime.now() + __import__('datetime').timedelta(minutes=30)).strftime("%Y-%m-%d %H:%M:%S")
+        expira = (datetime.now() + timedelta(minutes=30)).strftime("%Y-%m-%d %H:%M:%S")
         db.execute("UPDATE reset_tokens SET usado=1 WHERE login=?", (login_u,))
         db.execute("INSERT INTO reset_tokens(login,token,expira_em) VALUES(?,?,?)", (login_u, codigo, expira))
         db.commit(); db.close()
-        return render_template("recuperar_senha.html", codigo=codigo, login=login_u)
+        # Envia o código por e-mail
+        try:
+            msg = Message(
+                subject="Recuperação de Senha – Sistema de Exames",
+                recipients=[user["email"]],
+                body=f"""Olá, {user["nome"]}!
+
+Você solicitou a redefinição de senha no Sistema de Controle de Exames.
+
+Seu código de verificação é: {codigo}
+
+Este código é válido por 30 minutos.
+
+Se você não solicitou essa redefinição, ignore este e-mail.
+
+Atenciosamente,
+Secretaria Municipal de Saúde de {MUNICIPIO_NOME}/{MUNICIPIO_UF}
+"""
+            )
+            mail.send(msg)
+        except Exception as e:
+            flash("Erro ao enviar e-mail. Contate o administrador.", "danger")
+            return render_template("recuperar_senha.html")
+        flash("Código enviado para o e-mail cadastrado. Verifique sua caixa de entrada.", "success")
+        return render_template("recuperar_senha.html", login=login_u, aguardando_codigo=True)
     return render_template("recuperar_senha.html")
 
 @app.route("/nova-senha", methods=["GET","POST"])
@@ -305,12 +340,13 @@ def usuarios():
         perfil  = request.form.get("perfil","operador")
         if acao == "add":
             senha = request.form.get("senha","").strip()
+            email = request.form.get("email","").strip() or None
             if not nome or not login_u or not senha:
                 flash("Preencha todos os campos.", "danger")
             else:
                 try:
-                    db.execute("INSERT INTO usuarios(nome,login,senha_hash,perfil,criado_em) VALUES(?,?,?,?,?)",
-                               (nome, login_u, hash_senha(senha), perfil, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+                    db.execute("INSERT INTO usuarios(nome,login,senha_hash,perfil,email,criado_em) VALUES(?,?,?,?,?,?)",
+                               (nome, login_u, hash_senha(senha), perfil, email, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
                     db.commit()
                     flash(f"✅ Usuário '{login_u}' criado!", "success")
                 except: flash(f"Login '{login_u}' já existe.", "danger")
