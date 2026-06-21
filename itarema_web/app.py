@@ -178,7 +178,11 @@ def init_db():
             atualizado_em TEXT
         )""")
         old_rcols = [r[1] for r in conn.execute("PRAGMA table_info(responsaveis_contrato_old)").fetchall()]
-        campos_comuns = [c for c in old_rcols if c != "id"]
+        novos_campos_validos = ["gestor_nome","gestor_cargo","gestor_cpf","gestor_telefone","gestor_email",
+                                 "fiscal_nome","fiscal_cargo","fiscal_cpf","fiscal_telefone","fiscal_email","atualizado_em"]
+        # Só migra colunas que existem nos dois esquemas (versões antigas tinham
+        # gestor_portaria/fiscal_portaria em vez de gestor_cpf/fiscal_cpf — não há de onde migrar esse valor).
+        campos_comuns = [c for c in old_rcols if c in novos_campos_validos]
         if campos_comuns:
             campos_sql = ",".join(campos_comuns)
             conn.execute(f"""INSERT INTO responsaveis_contrato(contrato_id,{campos_sql})
