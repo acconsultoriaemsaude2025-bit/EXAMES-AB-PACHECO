@@ -11,7 +11,8 @@ from datetime import datetime, date, timedelta
 from functools import wraps
 from config import (MUNICIPIO_NOME, MUNICIPIO_UF, SECRETARIA_NOME, SISTEMA_SUBTITULO,
                     CONTRATO_NUM, CONTRATO_EMP, CONTRATO_VALOR, CONTRATO_ANO,
-                    JUSTIFICATIVA_OPCOES, EXAMES_CONTRATO)
+                    JUSTIFICATIVA_OPCOES, EXAMES_CONTRATO,
+                    CONTRATO_INICIO, CONTRATO_VENCIMENTO)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
@@ -135,6 +136,41 @@ def fmt_data(s):
 
 def hash_senha(senha):
     return hashlib.sha256(senha.encode()).hexdigest()
+
+def calc_prazo_contrato():
+    """Calcula o percentual decorrido e status de vencimento do contrato,
+    com base em CONTRATO_INICIO / CONTRATO_VENCIMENTO (config.py)."""
+    try:
+        inicio = datetime.strptime(CONTRATO_INICIO, "%Y-%m-%d").date()
+        vencimento = datetime.strptime(CONTRATO_VENCIMENTO, "%Y-%m-%d").date()
+    except Exception:
+        return None
+
+    hoje = date.today()
+    total_dias = max((vencimento - inicio).days, 1)
+    decorridos = (hoje - inicio).days
+    pct = max(0, min(100, decorridos / total_dias * 100))
+
+    dias_restantes = (vencimento - hoje).days
+    meses_restantes = (vencimento.year - hoje.year) * 12 + (vencimento.month - hoje.month)
+    if vencimento.day < hoje.day:
+        meses_restantes -= 1
+
+    if dias_restantes < 0:
+        status, cor = "Vencido", "danger"
+    elif meses_restantes < 6:
+        status, cor = "Crítico", "danger"
+    elif meses_restantes < 12:
+        status, cor = "Atenção", "warning"
+    else:
+        status, cor = "Em dia", "success"
+
+    return {
+        "inicio": inicio, "vencimento": vencimento,
+        "pct": pct, "dias_restantes": dias_restantes,
+        "meses_restantes": meses_restantes,
+        "status": status, "cor": cor,
+    }
 
 def get_ip():
     return request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
@@ -408,9 +444,11 @@ def dashboard():
         meses_labels.append(["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][m-1])
         meses_valores.append(round(v, 2))
     db.close()
+    prazo = calc_prazo_contrato()
     return render_template("dashboard.html", orc=orc, gasto=gasto, saldo=saldo, pct=pct,
                            total_aut=total_aut, status_data=status_data, ultimas=ultimas,
-                           ano=ano, meses_labels=meses_labels, meses_valores=meses_valores)
+                           ano=ano, meses_labels=meses_labels, meses_valores=meses_valores,
+                           prazo=prazo)
 
 @app.route("/confirmar", methods=["GET","POST"])
 @login_required

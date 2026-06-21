@@ -16,6 +16,11 @@ CONTRATO_EMP   = "DIAGNOSIS / A B PACHECO ME"
 CONTRATO_VALOR = 351247.00
 CONTRATO_ANO   = 2023
 
+# Vigência do contrato (assinatura original + aditivos de renovação).
+# Atualize CONTRATO_VENCIMENTO sempre que houver um novo termo aditivo.
+CONTRATO_INICIO     = "2024-02-01"
+CONTRATO_VENCIMENTO = "2026-12-31"
+
 # ── Opções de Justificativa ───────────────────────────────────────────────────
 # Personalize as opções de justificativa para cada contrato/cliente
 JUSTIFICATIVA_OPCOES = [

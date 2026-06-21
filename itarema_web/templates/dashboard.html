@@ -79,6 +79,34 @@
   </div>
 </div>
 
+{% if prazo %}
+<!-- Prazo do contrato -->
+<div class="card mb-4">
+  <div class="card-body">
+    <div class="d-flex justify-content-between mb-1">
+      <span class="fw-semibold">Prazo do Contrato {{ CONTRATO_NUM }}</span>
+      <span class="fw-bold text-{{ prazo.cor }}">{{ "%.1f"|format(prazo.pct) }}% decorrido</span>
+    </div>
+    <div class="progress" style="height:18px;border-radius:9px">
+      <div class="progress-bar bg-{{ prazo.cor }} progress-bar-striped"
+           style="width:{{ [prazo.pct,100]|min|round(1) }}%" role="progressbar">
+      </div>
+    </div>
+    <div class="d-flex justify-content-between mt-1" style="font-size:.78rem;color:#888">
+      <span>Início: {{ prazo.inicio.strftime("%d/%m/%Y") }}</span>
+      <span>Vencimento: {{ prazo.vencimento.strftime("%d/%m/%Y") }}</span>
+    </div>
+    <div class="mt-2 fw-semibold text-{{ prazo.cor }}" style="font-size:.85rem">
+      {% if prazo.dias_restantes < 0 %}
+        {{ prazo.status }} — vencido há {{ -prazo.dias_restantes }} dias
+      {% else %}
+        {{ prazo.status }} — faltam {{ prazo.dias_restantes }} dias
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <div class="row g-3 mb-4">
   <!-- Status -->
   <div class="col-lg-5">
