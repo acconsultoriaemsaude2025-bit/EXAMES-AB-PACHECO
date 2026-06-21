@@ -907,13 +907,15 @@ def gestor_fiscal():
 @login_required
 def selecionar_contrato(cid):
     db = get_db()
-    row = db.execute("SELECT id FROM contratos WHERE id=? AND ativo=1", (cid,)).fetchone()
+    achado = db.execute("SELECT id, numero, ativo FROM contratos WHERE id=?", (cid,)).fetchone()
     db.close()
-    if row:
+    if achado and achado["ativo"] == 1:
         session["contrato_ativo_id"] = cid
-        flash("✅ Contrato selecionado.", "success")
+        flash(f"✅ Contrato '{achado['numero']}' selecionado.", "success")
+    elif achado:
+        flash(f"Contrato inválido (id={cid}, numero={achado['numero']}, ativo={achado['ativo']!r}).", "danger")
     else:
-        flash("Contrato inválido.", "danger")
+        flash(f"Contrato inválido (id={cid} não encontrado na tabela contratos).", "danger")
     voltar = request.referrer or url_for("dashboard")
     return redirect(voltar)
 
