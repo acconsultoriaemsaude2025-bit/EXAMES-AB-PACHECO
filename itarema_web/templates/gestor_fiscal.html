@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+{% block title %}Gestor/Fiscal do Contrato{% endblock %}
+{% block icon %}person-badge{% endblock %}
+{% block page_title %}Gestor e Fiscal do Contrato{% endblock %}
+
+{% block content %}
+<div class="row g-3">
+  <div class="col-lg-9">
+    <form method="post">
+      <div class="row g-3">
+        <!-- Gestor -->
+        <div class="col-md-6">
+          <div class="card h-100">
+            <div class="card-header" style="background:#1F3864;color:#fff">
+              <i class="bi bi-person-gear me-2"></i>Gestor do Contrato
+            </div>
+            <div class="card-body">
+              <div class="mb-2">
+                <label class="form-label fw-semibold">Nome completo</label>
+                <input name="gestor_nome" type="text" class="form-control" placeholder="Nome do gestor" value="{{ row.gestor_nome or '' }}">
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold">Cargo / Função</label>
+                <input name="gestor_cargo" type="text" class="form-control" placeholder="Ex: Secretário Municipal de Saúde" value="{{ row.gestor_cargo or '' }}">
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold">Portaria de Nomeação</label>
+                <input name="gestor_portaria" type="text" class="form-control" placeholder="Ex: Portaria Nº 012/2024" value="{{ row.gestor_portaria or '' }}">
+              </div>
+              <div class="row g-2">
+                <div class="col-7">
+                  <label class="form-label fw-semibold">Telefone</label>
+                  <input name="gestor_telefone" type="text" class="form-control" placeholder="(88) 9 9999-9999" value="{{ row.gestor_telefone or '' }}">
+                </div>
+                <div class="col-12">
+                  <label class="form-label fw-semibold mt-2">E-mail</label>
+                  <input name="gestor_email" type="email" class="form-control" placeholder="gestor@email.com" value="{{ row.gestor_email or '' }}">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fiscal -->
+        <div class="col-md-6">
+          <div class="card h-100">
+            <div class="card-header" style="background:#198754;color:#fff">
+              <i class="bi bi-person-check me-2"></i>Fiscal do Contrato
+            </div>
+            <div class="card-body">
+              <div class="mb-2">
+                <label class="form-label fw-semibold">Nome completo</label>
+                <input name="fiscal_nome" type="text" class="form-control" placeholder="Nome do fiscal" value="{{ row.fiscal_nome or '' }}">
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold">Cargo / Função</label>
+                <input name="fiscal_cargo" type="text" class="form-control" placeholder="Ex: Coordenador de Atenção Básica" value="{{ row.fiscal_cargo or '' }}">
+              </div>
+              <div class="mb-2">
+                <label class="form-label fw-semibold">Portaria de Nomeação</label>
+                <input name="fiscal_portaria" type="text" class="form-control" placeholder="Ex: Portaria Nº 013/2024" value="{{ row.fiscal_portaria or '' }}">
+              </div>
+              <div class="row g-2">
+                <div class="col-7">
+                  <label class="form-label fw-semibold">Telefone</label>
+                  <input name="fiscal_telefone" type="text" class="form-control" placeholder="(88) 9 9999-9999" value="{{ row.fiscal_telefone or '' }}">
+                </div>
+                <div class="col-12">
+                  <label class="form-label fw-semibold mt-2">E-mail</label>
+                  <input name="fiscal_email" type="email" class="form-control" placeholder="fiscal@email.com" value="{{ row.fiscal_email or '' }}">
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-3 d-flex align-items-center gap-3">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-check-circle me-1"></i>Salvar Dados
+        </button>
+        {% if row.atualizado_em %}
+        <span class="text-muted" style="font-size:.8rem">
+          <i class="bi bi-clock-history me-1"></i>Última atualização: {{ row.atualizado_em }}
+        </span>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+
+  <!-- Info lateral -->
+  <div class="col-lg-3">
+    <div class="card">
+      <div class="card-header bg-info text-white"><i class="bi bi-info-circle me-1"></i>Sobre</div>
+      <div class="card-body" style="font-size:.82rem">
+        Cadastre aqui o <strong>gestor</strong> (responsável pela execução do contrato) e o
+        <strong>fiscal</strong> (responsável pela fiscalização técnica), conforme exigido pela
+        Lei nº 14.133/2021. Esses dados ficam disponíveis para consulta e podem ser usados em
+        relatórios e ofícios.
+      </div>
+    </div>
+    <div class="card mt-3">
+      <div class="card-header bg-white"><i class="bi bi-file-earmark-text me-1"></i>Contrato</div>
+      <div class="card-body" style="font-size:.82rem">
+        <strong>Nº:</strong> {{ CONTRATO_NUM }}<br>
+        <strong>Empresa:</strong> {{ CONTRATO_EMP }}<br>
+        <strong>Total:</strong> {{ fmt_brl(CONTRATO_VALOR) }}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

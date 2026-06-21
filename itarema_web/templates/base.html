@@ -152,6 +152,9 @@
     <a href="{{ url_for('exames') }}" class="nav-link {% if request.endpoint=='exames' %}active{% endif %}">
       <i class="bi bi-clipboard2-pulse"></i> Catálogo de Exames
     </a>
+    <a href="{{ url_for('gestor_fiscal') }}" class="nav-link {% if request.endpoint=='gestor_fiscal' %}active{% endif %}">
+      <i class="bi bi-person-badge"></i> Gestor/Fiscal do Contrato
+    </a>
     {% if session.usuario_perfil == 'admin' %}
     <a href="{{ url_for('usuarios') }}" class="nav-link {% if request.endpoint=='usuarios' %}active{% endif %}">
       <i class="bi bi-people"></i> Usuários

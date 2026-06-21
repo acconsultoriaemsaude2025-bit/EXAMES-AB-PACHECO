@@ -92,6 +92,14 @@ def init_db():
             expira_em TEXT NOT NULL,
             usado INTEGER DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS responsaveis_contrato (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            gestor_nome TEXT, gestor_cargo TEXT, gestor_portaria TEXT,
+            gestor_telefone TEXT, gestor_email TEXT,
+            fiscal_nome TEXT, fiscal_cargo TEXT, fiscal_portaria TEXT,
+            fiscal_telefone TEXT, fiscal_email TEXT,
+            atualizado_em TEXT
+        );
     """)
     # Migração: adiciona colunas novas se ainda não existirem
     cols = [r[1] for r in conn.execute("PRAGMA table_info(autorizacoes)").fetchall()]
@@ -104,6 +112,7 @@ def init_db():
         conn.executemany(
             "INSERT OR IGNORE INTO exames(codigo,descricao,tipo,valor_unitario,quantidade_contratada) VALUES(?,?,?,?,?)",
             EXAMES_CONTRATO)
+    conn.execute("INSERT OR IGNORE INTO responsaveis_contrato(id) VALUES(1)")
     conn.execute("INSERT OR IGNORE INTO orcamento(ano,valor) VALUES(?,?)", (CONTRATO_ANO, CONTRATO_VALOR))
     ano_atual = date.today().year
     conn.execute("INSERT OR IGNORE INTO orcamento(ano,valor) VALUES(?,?)", (ano_atual, CONTRATO_VALOR))
@@ -735,6 +744,27 @@ def exames():
     rows = db.execute("SELECT * FROM exames ORDER BY codigo").fetchall()
     db.close()
     return render_template("exames.html", rows=rows)
+
+@app.route("/configuracoes/responsaveis", methods=["GET","POST"])
+@login_required
+def gestor_fiscal():
+    if session.get("usuario_perfil") == "prestador":
+        flash("⛔ Acesso não permitido para o perfil Prestador.", "danger")
+        return redirect(url_for("confirmar_exames"))
+    db = get_db()
+    campos = ["gestor_nome","gestor_cargo","gestor_portaria","gestor_telefone","gestor_email",
+              "fiscal_nome","fiscal_cargo","fiscal_portaria","fiscal_telefone","fiscal_email"]
+    if request.method == "POST":
+        valores = [request.form.get(c,"").strip() or None for c in campos]
+        sets = ", ".join(f"{c}=?" for c in campos)
+        db.execute(f"UPDATE responsaveis_contrato SET {sets}, atualizado_em=? WHERE id=1",
+                   (*valores, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        db.commit(); db.close()
+        flash("✅ Dados de Gestor e Fiscal do contrato atualizados!", "success")
+        return redirect(url_for("gestor_fiscal"))
+    row = db.execute("SELECT * FROM responsaveis_contrato WHERE id=1").fetchone()
+    db.close()
+    return render_template("gestor_fiscal.html", row=row)
 
 @app.route("/relatorio")
 @login_required
