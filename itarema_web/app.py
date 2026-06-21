@@ -15,7 +15,11 @@ from config import (MUNICIPIO_NOME, MUNICIPIO_UF, SECRETARIA_NOME, SISTEMA_SUBTI
                     CONTRATO_INICIO, CONTRATO_VENCIMENTO)
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
+# IMPORTANTE: precisa ser FIXA (não gerada aleatoriamente a cada processo),
+# senão cada worker do gunicorn assina a sessão com uma chave diferente e o
+# usuário "perde" login/contrato selecionado ao cair em outro worker.
+# Defina a variável de ambiente SECRET_KEY no Railway para um valor próprio em produção.
+app.secret_key = os.environ.get("SECRET_KEY", "itarema-exames-lab-chave-fixa-c0ntrole-2026")
 
 # ── Configurações de segurança da sessão ──────────────────────────────────────
 app.config.update(
