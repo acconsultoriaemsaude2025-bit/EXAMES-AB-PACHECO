@@ -94,9 +94,9 @@ def init_db():
         );
         CREATE TABLE IF NOT EXISTS responsaveis_contrato (
             id INTEGER PRIMARY KEY CHECK (id = 1),
-            gestor_nome TEXT, gestor_cargo TEXT, gestor_portaria TEXT,
+            gestor_nome TEXT, gestor_cargo TEXT, gestor_cpf TEXT,
             gestor_telefone TEXT, gestor_email TEXT,
-            fiscal_nome TEXT, fiscal_cargo TEXT, fiscal_portaria TEXT,
+            fiscal_nome TEXT, fiscal_cargo TEXT, fiscal_cpf TEXT,
             fiscal_telefone TEXT, fiscal_email TEXT,
             atualizado_em TEXT
         );
@@ -752,8 +752,8 @@ def gestor_fiscal():
         flash("⛔ Acesso não permitido para o perfil Prestador.", "danger")
         return redirect(url_for("confirmar_exames"))
     db = get_db()
-    campos = ["gestor_nome","gestor_cargo","gestor_portaria","gestor_telefone","gestor_email",
-              "fiscal_nome","fiscal_cargo","fiscal_portaria","fiscal_telefone","fiscal_email"]
+    campos = ["gestor_nome","gestor_cargo","gestor_cpf","gestor_telefone","gestor_email",
+              "fiscal_nome","fiscal_cargo","fiscal_cpf","fiscal_telefone","fiscal_email"]
     if request.method == "POST":
         valores = [request.form.get(c,"").strip() or None for c in campos]
         sets = ", ".join(f"{c}=?" for c in campos)
