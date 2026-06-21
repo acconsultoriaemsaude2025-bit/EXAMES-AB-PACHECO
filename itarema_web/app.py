@@ -165,6 +165,26 @@ def init_db():
         conn.execute("ALTER TABLE autorizacoes ADD COLUMN contrato_id INTEGER")
         conn.execute("UPDATE autorizacoes SET contrato_id=? WHERE contrato_id IS NULL", (contrato_semente_id,))
 
+    # ── Migração: responsaveis_contrato tinha PK fixa (id=1); passa a ser por contrato ──
+    rcols = [r[1] for r in conn.execute("PRAGMA table_info(responsaveis_contrato)").fetchall()]
+    if "contrato_id" not in rcols:
+        conn.execute("ALTER TABLE responsaveis_contrato RENAME TO responsaveis_contrato_old")
+        conn.execute("""CREATE TABLE responsaveis_contrato (
+            contrato_id INTEGER PRIMARY KEY,
+            gestor_nome TEXT, gestor_cargo TEXT, gestor_cpf TEXT,
+            gestor_telefone TEXT, gestor_email TEXT,
+            fiscal_nome TEXT, fiscal_cargo TEXT, fiscal_cpf TEXT,
+            fiscal_telefone TEXT, fiscal_email TEXT,
+            atualizado_em TEXT
+        )""")
+        old_rcols = [r[1] for r in conn.execute("PRAGMA table_info(responsaveis_contrato_old)").fetchall()]
+        campos_comuns = [c for c in old_rcols if c != "id"]
+        if campos_comuns:
+            campos_sql = ",".join(campos_comuns)
+            conn.execute(f"""INSERT INTO responsaveis_contrato(contrato_id,{campos_sql})
+                            SELECT ?,{campos_sql} FROM responsaveis_contrato_old""", (contrato_semente_id,))
+        conn.execute("DROP TABLE responsaveis_contrato_old")
+
     if conn.execute("SELECT COUNT(*) FROM exames").fetchone()[0] == 0:
         conn.executemany(
             "INSERT OR IGNORE INTO exames(contrato_id,codigo,descricao,tipo,valor_unitario,quantidade_contratada) VALUES(?,?,?,?,?,?)",
