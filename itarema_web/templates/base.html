@@ -112,6 +112,21 @@
     </span>
     <span style="display:block;font-size:.72rem;opacity:.7;margin-top:4px">{{ SISTEMA_SUBTITULO }}</span>
   </div>
+  {% if CONTRATOS_LISTA and CONTRATOS_LISTA|length > 1 %}
+  <div class="px-2 pt-2">
+    <form method="post" action="{{ url_for('selecionar_contrato', cid=999999) }}" id="frmContratoSel"
+          onsubmit="this.action=this.action.replace('999999',document.getElementById('selContrato').value)">
+      <select id="selContrato" name="cid" class="form-select form-select-sm" onchange="document.getElementById('frmContratoSel').submit()"
+              style="font-size:.75rem">
+        {% for c in CONTRATOS_LISTA %}
+        <option value="{{ c.id }}" {% if CONTRATO_ATIVO and c.id == CONTRATO_ATIVO.id %}selected{% endif %}>
+          {{ c.tipo }} – {{ c.numero }}
+        </option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+  {% endif %}
   <div class="flex-grow-1 py-2">
     {% if session.usuario_perfil == 'prestador' %}
     <!-- MENU PRESTADOR -->
@@ -156,6 +171,9 @@
       <i class="bi bi-person-badge"></i> Gestor/Fiscal do Contrato
     </a>
     {% if session.usuario_perfil == 'admin' %}
+    <a href="{{ url_for('contratos') }}" class="nav-link {% if request.endpoint=='contratos' %}active{% endif %}">
+      <i class="bi bi-file-earmark-text"></i> Contratos
+    </a>
     <a href="{{ url_for('usuarios') }}" class="nav-link {% if request.endpoint=='usuarios' %}active{% endif %}">
       <i class="bi bi-people"></i> Usuários
     </a>

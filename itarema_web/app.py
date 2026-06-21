@@ -92,8 +92,19 @@ def init_db():
             expira_em TEXT NOT NULL,
             usado INTEGER DEFAULT 0
         );
+        CREATE TABLE IF NOT EXISTS contratos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero TEXT NOT NULL,
+            tipo TEXT NOT NULL DEFAULT 'Laboratorial',
+            empresa TEXT,
+            valor_total REAL DEFAULT 0.0,
+            data_inicio TEXT,
+            data_vencimento TEXT,
+            ativo INTEGER DEFAULT 1,
+            criado_em TEXT DEFAULT (datetime('now','localtime'))
+        );
         CREATE TABLE IF NOT EXISTS responsaveis_contrato (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
+            contrato_id INTEGER PRIMARY KEY,
             gestor_nome TEXT, gestor_cargo TEXT, gestor_cpf TEXT,
             gestor_telefone TEXT, gestor_email TEXT,
             fiscal_nome TEXT, fiscal_cargo TEXT, fiscal_cpf TEXT,
@@ -108,14 +119,63 @@ def init_db():
     if "justificativa"   not in cols: conn.execute("ALTER TABLE autorizacoes ADD COLUMN justificativa TEXT")
     ucols = [r[1] for r in conn.execute("PRAGMA table_info(usuarios)").fetchall()]
     if "email" not in ucols: conn.execute("ALTER TABLE usuarios ADD COLUMN email TEXT")
+
+    # ── Multi-contrato: garante 1 contrato semente com os dados do config.py ────
+    if conn.execute("SELECT COUNT(*) FROM contratos").fetchone()[0] == 0:
+        conn.execute("""INSERT INTO contratos(numero,tipo,empresa,valor_total,data_inicio,data_vencimento,ativo)
+                        VALUES(?,?,?,?,?,?,1)""",
+                     (CONTRATO_NUM, "Laboratorial", CONTRATO_EMP, CONTRATO_VALOR, CONTRATO_INICIO, CONTRATO_VENCIMENTO))
+    contrato_semente_id = conn.execute("SELECT id FROM contratos ORDER BY id LIMIT 1").fetchone()[0]
+
+    # ── Migração: exames e orcamento passam a pertencer a um contrato ───────────
+    ecols = [r[1] for r in conn.execute("PRAGMA table_info(exames)").fetchall()]
+    if "contrato_id" not in ecols:
+        conn.execute("ALTER TABLE exames RENAME TO exames_old")
+        conn.execute("""CREATE TABLE exames (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contrato_id INTEGER NOT NULL,
+            codigo TEXT NOT NULL,
+            descricao TEXT NOT NULL,
+            tipo TEXT DEFAULT '',
+            valor_unitario REAL DEFAULT 0.0,
+            quantidade_contratada INTEGER DEFAULT 0,
+            UNIQUE(codigo, contrato_id)
+        )""")
+        conn.execute("""INSERT INTO exames(id,contrato_id,codigo,descricao,tipo,valor_unitario,quantidade_contratada)
+                        SELECT id,?,codigo,descricao,tipo,valor_unitario,quantidade_contratada FROM exames_old""",
+                     (contrato_semente_id,))
+        conn.execute("DROP TABLE exames_old")
+
+    ocols = [r[1] for r in conn.execute("PRAGMA table_info(orcamento)").fetchall()]
+    if "contrato_id" not in ocols:
+        conn.execute("ALTER TABLE orcamento RENAME TO orcamento_old")
+        conn.execute("""CREATE TABLE orcamento (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            contrato_id INTEGER NOT NULL,
+            ano INTEGER NOT NULL,
+            valor REAL DEFAULT 0.0,
+            UNIQUE(contrato_id, ano)
+        )""")
+        conn.execute("""INSERT INTO orcamento(id,contrato_id,ano,valor)
+                        SELECT id,?,ano,valor FROM orcamento_old""", (contrato_semente_id,))
+        conn.execute("DROP TABLE orcamento_old")
+
+    acols = [r[1] for r in conn.execute("PRAGMA table_info(autorizacoes)").fetchall()]
+    if "contrato_id" not in acols:
+        conn.execute("ALTER TABLE autorizacoes ADD COLUMN contrato_id INTEGER")
+        conn.execute("UPDATE autorizacoes SET contrato_id=? WHERE contrato_id IS NULL", (contrato_semente_id,))
+
     if conn.execute("SELECT COUNT(*) FROM exames").fetchone()[0] == 0:
         conn.executemany(
-            "INSERT OR IGNORE INTO exames(codigo,descricao,tipo,valor_unitario,quantidade_contratada) VALUES(?,?,?,?,?)",
-            EXAMES_CONTRATO)
-    conn.execute("INSERT OR IGNORE INTO responsaveis_contrato(id) VALUES(1)")
-    conn.execute("INSERT OR IGNORE INTO orcamento(ano,valor) VALUES(?,?)", (CONTRATO_ANO, CONTRATO_VALOR))
+            "INSERT OR IGNORE INTO exames(contrato_id,codigo,descricao,tipo,valor_unitario,quantidade_contratada) VALUES(?,?,?,?,?,?)",
+            [(contrato_semente_id, *e) for e in EXAMES_CONTRATO])
+
+    for row in conn.execute("SELECT id FROM contratos").fetchall():
+        conn.execute("INSERT OR IGNORE INTO responsaveis_contrato(contrato_id) VALUES(?)", (row[0],))
+
+    conn.execute("INSERT OR IGNORE INTO orcamento(contrato_id,ano,valor) VALUES(?,?,?)", (contrato_semente_id, CONTRATO_ANO, CONTRATO_VALOR))
     ano_atual = date.today().year
-    conn.execute("INSERT OR IGNORE INTO orcamento(ano,valor) VALUES(?,?)", (ano_atual, CONTRATO_VALOR))
+    conn.execute("INSERT OR IGNORE INTO orcamento(contrato_id,ano,valor) VALUES(?,?,?)", (contrato_semente_id, ano_atual, CONTRATO_VALOR))
     # Cria usuário admin padrão se não existir
     if conn.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0] == 0:
         senha_hash = hashlib.sha256("admin123".encode()).hexdigest()
@@ -146,12 +206,14 @@ def fmt_data(s):
 def hash_senha(senha):
     return hashlib.sha256(senha.encode()).hexdigest()
 
-def calc_prazo_contrato():
-    """Calcula o percentual decorrido e status de vencimento do contrato,
-    com base em CONTRATO_INICIO / CONTRATO_VENCIMENTO (config.py)."""
+def calc_prazo_contrato(contrato):
+    """Calcula o percentual decorrido e status de vencimento do contrato informado
+    (dict/Row com data_inicio e data_vencimento no formato YYYY-MM-DD)."""
+    if not contrato:
+        return None
     try:
-        inicio = datetime.strptime(CONTRATO_INICIO, "%Y-%m-%d").date()
-        vencimento = datetime.strptime(CONTRATO_VENCIMENTO, "%Y-%m-%d").date()
+        inicio = datetime.strptime(contrato["data_inicio"], "%Y-%m-%d").date()
+        vencimento = datetime.strptime(contrato["data_vencimento"], "%Y-%m-%d").date()
     except Exception:
         return None
 
@@ -180,6 +242,18 @@ def calc_prazo_contrato():
         "meses_restantes": meses_restantes,
         "status": status, "cor": cor,
     }
+
+def get_contrato_ativo(db):
+    """Retorna o contrato selecionado na sessão (ou o primeiro contrato ativo)."""
+    cid = session.get("contrato_ativo_id")
+    row = None
+    if cid:
+        row = db.execute("SELECT * FROM contratos WHERE id=? AND ativo=1", (cid,)).fetchone()
+    if not row:
+        row = db.execute("SELECT * FROM contratos WHERE ativo=1 ORDER BY id LIMIT 1").fetchone()
+        if row:
+            session["contrato_ativo_id"] = row["id"]
+    return row
 
 def get_ip():
     return request.headers.get("X-Forwarded-For", request.remote_addr or "").split(",")[0].strip()
@@ -235,11 +309,28 @@ def admin_required(f):
 
 app.jinja_env.globals.update(
     fmt_brl=fmt_brl, fmt_data=fmt_data, hoje=date.today,
-    CONTRATO_NUM=CONTRATO_NUM, CONTRATO_EMP=CONTRATO_EMP, CONTRATO_VALOR=CONTRATO_VALOR,
     MUNICIPIO_NOME=MUNICIPIO_NOME, MUNICIPIO_UF=MUNICIPIO_UF,
     SECRETARIA_NOME=SECRETARIA_NOME, SISTEMA_SUBTITULO=SISTEMA_SUBTITULO,
     JUST_OPCOES=JUSTIFICATIVA_OPCOES,
 )
+
+@app.context_processor
+def inject_contrato_ativo():
+    """Disponibiliza o contrato ativo (e a lista de contratos) em todos os templates."""
+    db = get_db()
+    if session.get("usuario_id"):
+        contrato = get_contrato_ativo(db)
+    else:
+        contrato = db.execute("SELECT * FROM contratos WHERE ativo=1 ORDER BY id LIMIT 1").fetchone()
+    lista = db.execute("SELECT id,numero,tipo,empresa FROM contratos WHERE ativo=1 ORDER BY tipo,numero").fetchall()
+    db.close()
+    return dict(
+        CONTRATO_ATIVO=contrato,
+        CONTRATOS_LISTA=lista,
+        CONTRATO_NUM=contrato["numero"] if contrato else "",
+        CONTRATO_EMP=contrato["empresa"] if contrato else "",
+        CONTRATO_VALOR=contrato["valor_total"] if contrato else 0,
+    )
 
 # ── Cabeçalhos de segurança em todas as respostas ─────────────────────────────
 @app.after_request
@@ -428,32 +519,34 @@ def usuarios():
 def dashboard():
     ano = int(request.args.get("ano", date.today().year))
     db = get_db()
-    orc = (db.execute("SELECT valor FROM orcamento WHERE ano=?", (ano,)).fetchone() or [CONTRATO_VALOR])[0]
+    contrato = get_contrato_ativo(db)
+    cid = contrato["id"] if contrato else 0
+    orc = (db.execute("SELECT valor FROM orcamento WHERE ano=? AND contrato_id=?", (ano, cid)).fetchone() or [CONTRATO_VALOR])[0]
     gasto = db.execute(
-        "SELECT COALESCE(SUM(valor_total),0) FROM autorizacoes WHERE status!='CANCELADO' AND strftime('%Y',data_autorizacao)=?",
-        (str(ano),)).fetchone()[0]
+        "SELECT COALESCE(SUM(valor_total),0) FROM autorizacoes WHERE status!='CANCELADO' AND strftime('%Y',data_autorizacao)=? AND contrato_id=?",
+        (str(ano), cid)).fetchone()[0]
     saldo = orc - gasto
     pct   = (gasto/orc*100) if orc > 0 else 0
-    total_aut = db.execute("SELECT COUNT(*) FROM autorizacoes WHERE strftime('%Y',data_autorizacao)=?", (str(ano),)).fetchone()[0]
+    total_aut = db.execute("SELECT COUNT(*) FROM autorizacoes WHERE strftime('%Y',data_autorizacao)=? AND contrato_id=?", (str(ano), cid)).fetchone()[0]
 
     status_data = {}
     for st in ["AUTORIZADO","PENDENTE","REALIZADO","CANCELADO"]:
-        r = db.execute("SELECT COUNT(*), COALESCE(SUM(valor_total),0) FROM autorizacoes WHERE status=? AND strftime('%Y',data_autorizacao)=?", (st, str(ano))).fetchone()
+        r = db.execute("SELECT COUNT(*), COALESCE(SUM(valor_total),0) FROM autorizacoes WHERE status=? AND strftime('%Y',data_autorizacao)=? AND contrato_id=?", (st, str(ano), cid)).fetchone()
         status_data[st] = {"count": r[0], "valor": r[1]}
 
     ultimas = db.execute(
-        "SELECT * FROM autorizacoes ORDER BY id DESC LIMIT 10").fetchall()
+        "SELECT * FROM autorizacoes WHERE contrato_id=? ORDER BY id DESC LIMIT 10", (cid,)).fetchall()
 
     # Dados para gráfico mensal
     meses_labels, meses_valores = [], []
     for m in range(1, 13):
         v = db.execute(
-            "SELECT COALESCE(SUM(valor_total),0) FROM autorizacoes WHERE strftime('%Y',data_autorizacao)=? AND strftime('%m',data_autorizacao)=? AND status!='CANCELADO'",
-            (str(ano), f"{m:02d}")).fetchone()[0]
+            "SELECT COALESCE(SUM(valor_total),0) FROM autorizacoes WHERE strftime('%Y',data_autorizacao)=? AND strftime('%m',data_autorizacao)=? AND status!='CANCELADO' AND contrato_id=?",
+            (str(ano), f"{m:02d}", cid)).fetchone()[0]
         meses_labels.append(["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][m-1])
         meses_valores.append(round(v, 2))
     db.close()
-    prazo = calc_prazo_contrato()
+    prazo = calc_prazo_contrato(contrato)
     return render_template("dashboard.html", orc=orc, gasto=gasto, saldo=saldo, pct=pct,
                            total_aut=total_aut, status_data=status_data, ultimas=ultimas,
                            ano=ano, meses_labels=meses_labels, meses_valores=meses_valores,
@@ -476,11 +569,13 @@ def confirmar_exames():
                                 mes=request.args.get("mes",""),
                                 exame=request.args.get("exame","")))
     db  = get_db()
+    contrato = get_contrato_ativo(db)
+    cid = contrato["id"] if contrato else 0
     pac   = request.args.get("paciente","")
     mes   = request.args.get("mes","")
     exame = request.args.get("exame","")
-    q  = "SELECT * FROM autorizacoes WHERE 1=1"
-    p  = []
+    q  = "SELECT * FROM autorizacoes WHERE contrato_id=?"
+    p  = [cid]
     if pac:   q += " AND nome_paciente LIKE ?";   p.append(f"%{pac}%")
     if mes:   q += " AND strftime('%m',data_autorizacao)=?"; p.append(mes.zfill(2))
     if exame: q += " AND (descricao_exame LIKE ? OR codigo_exame LIKE ?)"; p += [f"%{exame}%"]*2
@@ -497,7 +592,9 @@ def autorizacao():
         flash("⛔ Acesso não permitido para o perfil Prestador.", "danger")
         return redirect(url_for("confirmar_exames"))
     db = get_db()
-    exames = db.execute("SELECT codigo, descricao, valor_unitario, quantidade_contratada FROM exames ORDER BY descricao").fetchall()
+    contrato = get_contrato_ativo(db)
+    cid = contrato["id"] if contrato else 0
+    exames = db.execute("SELECT codigo, descricao, valor_unitario, quantidade_contratada FROM exames WHERE contrato_id=? ORDER BY descricao", (cid,)).fetchall()
     if request.method == "POST":
         data_db  = parse_data(request.form.get("data_autorizacao",""))
         pac      = request.form.get("nome_paciente","").strip()
@@ -548,8 +645,8 @@ def autorizacao():
                 qtde = 1
 
             row_e = db.execute(
-                "SELECT descricao, quantidade_contratada, valor_unitario FROM exames WHERE codigo=?",
-                (cod,)).fetchone()
+                "SELECT descricao, quantidade_contratada, valor_unitario FROM exames WHERE codigo=? AND contrato_id=?",
+                (cod, cid)).fetchone()
 
             if not row_e:
                 erros.append(f"Exame '{cod}' não encontrado no catálogo.")
@@ -563,8 +660,8 @@ def autorizacao():
             if status_form != "CANCELADO":
                 qtd_contratada = int(row_e["quantidade_contratada"])
                 qtd_usada = db.execute(
-                    "SELECT COALESCE(SUM(quantidade_liberada),0) FROM autorizacoes WHERE codigo_exame=? AND status!='CANCELADO'",
-                    (cod,)).fetchone()[0]
+                    "SELECT COALESCE(SUM(quantidade_liberada),0) FROM autorizacoes WHERE codigo_exame=? AND status!='CANCELADO' AND contrato_id=?",
+                    (cod, cid)).fetchone()[0]
                 saldo_exame = qtd_contratada - qtd_usada
                 if saldo_exame <= 0:
                     erros.append(f"❌ Saldo ESGOTADO para '{desc}' — sem unidades disponíveis no contrato.")
@@ -590,12 +687,12 @@ def autorizacao():
             db.execute("""INSERT INTO autorizacoes
                 (numero_autorizacao,data_autorizacao,nome_paciente,cpf_cns,codigo_exame,
                  descricao_exame,quantidade_liberada,valor_unitario,valor_total,
-                 responsavel,status,observacoes,justificativa,criado_por_id,criado_por_nome)
-                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                 responsavel,status,observacoes,justificativa,criado_por_id,criado_por_nome,contrato_id)
+                VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 (num_aut, data_db, pac, cpf_cns,
                  item["cod"], item["desc"], item["qtde"], item["vu"], item["total"],
                  resp, status_form, obs, justificativa,
-                 session.get("usuario_id"), session.get("usuario_nome")))
+                 session.get("usuario_id"), session.get("usuario_nome"), cid))
             total_geral += item["total"]
 
         db.commit()
@@ -607,8 +704,8 @@ def autorizacao():
 
     # Saldo financeiro
     ano_atual = date.today().year
-    orc  = (db.execute("SELECT valor FROM orcamento WHERE ano=?", (ano_atual,)).fetchone() or [CONTRATO_VALOR])[0]
-    gasto = db.execute("SELECT COALESCE(SUM(valor_total),0) FROM autorizacoes WHERE status!='CANCELADO' AND strftime('%Y',data_autorizacao)=?", (str(ano_atual),)).fetchone()[0]
+    orc  = (db.execute("SELECT valor FROM orcamento WHERE ano=? AND contrato_id=?", (ano_atual, cid)).fetchone() or [CONTRATO_VALOR])[0]
+    gasto = db.execute("SELECT COALESCE(SUM(valor_total),0) FROM autorizacoes WHERE status!='CANCELADO' AND strftime('%Y',data_autorizacao)=? AND contrato_id=?", (str(ano_atual), cid)).fetchone()[0]
     db.close()
     return render_template("autorizacao.html", exames=exames, orc=orc, gasto=gasto,
                            saldo=orc-gasto, hoje_str=date.today().strftime("%d/%m/%Y"))
@@ -617,8 +714,10 @@ def autorizacao():
 @login_required
 def api_exame(codigo):
     db = get_db()
-    row = db.execute("SELECT descricao,valor_unitario,quantidade_contratada FROM exames WHERE codigo=?", (codigo.upper(),)).fetchone()
-    usado = db.execute("SELECT COALESCE(SUM(quantidade_liberada),0) FROM autorizacoes WHERE codigo_exame=? AND status!='CANCELADO'", (codigo.upper(),)).fetchone()[0]
+    contrato = get_contrato_ativo(db)
+    cid = contrato["id"] if contrato else 0
+    row = db.execute("SELECT descricao,valor_unitario,quantidade_contratada FROM exames WHERE codigo=? AND contrato_id=?", (codigo.upper(), cid)).fetchone()
+    usado = db.execute("SELECT COALESCE(SUM(quantidade_liberada),0) FROM autorizacoes WHERE codigo_exame=? AND status!='CANCELADO' AND contrato_id=?", (codigo.upper(), cid)).fetchone()[0]
     db.close()
     if not row: return jsonify({"erro": "Não encontrado"})
     return jsonify({"descricao": row["descricao"], "valor_unitario": row["valor_unitario"],
@@ -629,13 +728,15 @@ def api_exame(codigo):
 @login_required
 def historico():
     db  = get_db()
+    contrato = get_contrato_ativo(db)
+    cid = contrato["id"] if contrato else 0
     pac     = request.args.get("paciente","")
     st      = request.args.get("status","")
     mes     = request.args.get("mes","")
     exame   = request.args.get("exame","")
     cpf_cns = request.args.get("cpf_cns","").strip()
-    q  = "SELECT * FROM autorizacoes WHERE 1=1"
-    p  = []
+    q  = "SELECT * FROM autorizacoes WHERE contrato_id=?"
+    p  = [cid]
     if pac:     q += " AND nome_paciente LIKE ?";   p.append(f"%{pac}%")
     if st:      q += " AND status=?";               p.append(st)
     if mes:     q += " AND strftime('%m',data_autorizacao)=?"; p.append(mes.zfill(2))
@@ -698,12 +799,15 @@ def editar_aut(id):
 @login_required
 def saldo_exames():
     db = get_db()
+    contrato = get_contrato_ativo(db)
+    cid = contrato["id"] if contrato else 0
     rows = db.execute("""
         SELECT e.codigo, e.descricao, e.tipo, e.valor_unitario, e.quantidade_contratada,
                COALESCE(SUM(CASE WHEN a.status!='CANCELADO' THEN a.quantidade_liberada ELSE 0 END),0) AS usada
-        FROM exames e LEFT JOIN autorizacoes a ON a.codigo_exame=e.codigo
+        FROM exames e LEFT JOIN autorizacoes a ON a.codigo_exame=e.codigo AND a.contrato_id=e.contrato_id
+        WHERE e.contrato_id=?
         GROUP BY e.codigo ORDER BY e.descricao
-    """).fetchall()
+    """, (cid,)).fetchall()
     db.close()
     return render_template("saldo.html", rows=rows)
 
@@ -714,6 +818,8 @@ def exames():
         flash("⛔ Acesso não permitido para o perfil Prestador.", "danger")
         return redirect(url_for("confirmar_exames"))
     db = get_db()
+    contrato = get_contrato_ativo(db)
+    cid = contrato["id"] if contrato else 0
     if request.method == "POST":
         acao = request.form.get("acao")
         cod  = request.form.get("codigo","").strip().upper()
@@ -725,23 +831,23 @@ def exames():
         except: qtd = 0
         if acao == "add":
             try:
-                db.execute("INSERT INTO exames(codigo,descricao,tipo,valor_unitario,quantidade_contratada) VALUES(?,?,?,?,?)",(cod,desc,tipo,val,qtd))
+                db.execute("INSERT INTO exames(contrato_id,codigo,descricao,tipo,valor_unitario,quantidade_contratada) VALUES(?,?,?,?,?,?)",(cid,cod,desc,tipo,val,qtd))
                 flash(f"✅ Exame '{cod}' adicionado.","success")
-            except: flash(f"Código '{cod}' já existe.","danger")
+            except: flash(f"Código '{cod}' já existe neste contrato.","danger")
         elif acao == "edit":
             cod_orig = request.form.get("codigo_original","")
-            db.execute("UPDATE exames SET codigo=?,descricao=?,tipo=?,valor_unitario=?,quantidade_contratada=? WHERE codigo=?",
-                       (cod,desc,tipo,val,qtd,cod_orig))
+            db.execute("UPDATE exames SET codigo=?,descricao=?,tipo=?,valor_unitario=?,quantidade_contratada=? WHERE codigo=? AND contrato_id=?",
+                       (cod,desc,tipo,val,qtd,cod_orig,cid))
             flash(f"✅ Exame '{cod}' atualizado.","success")
         elif acao == "del":
             if session.get("usuario_perfil") != "admin":
                 flash("⛔ Apenas administradores podem excluir exames.", "danger")
             else:
-                db.execute("DELETE FROM exames WHERE codigo=?", (cod,))
+                db.execute("DELETE FROM exames WHERE codigo=? AND contrato_id=?", (cod, cid))
                 flash(f"Exame '{cod}' excluído.","warning")
         db.commit()
         return redirect(url_for("exames"))
-    rows = db.execute("SELECT * FROM exames ORDER BY codigo").fetchall()
+    rows = db.execute("SELECT * FROM exames WHERE contrato_id=? ORDER BY codigo", (cid,)).fetchall()
     db.close()
     return render_template("exames.html", rows=rows)
 
@@ -752,34 +858,98 @@ def gestor_fiscal():
         flash("⛔ Acesso não permitido para o perfil Prestador.", "danger")
         return redirect(url_for("confirmar_exames"))
     db = get_db()
+    contrato = get_contrato_ativo(db)
+    cid = contrato["id"] if contrato else None
     campos = ["gestor_nome","gestor_cargo","gestor_cpf","gestor_telefone","gestor_email",
               "fiscal_nome","fiscal_cargo","fiscal_cpf","fiscal_telefone","fiscal_email"]
     if request.method == "POST":
         valores = [request.form.get(c,"").strip() or None for c in campos]
         sets = ", ".join(f"{c}=?" for c in campos)
-        db.execute(f"UPDATE responsaveis_contrato SET {sets}, atualizado_em=? WHERE id=1",
-                   (*valores, datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        db.execute("INSERT OR IGNORE INTO responsaveis_contrato(contrato_id) VALUES(?)", (cid,))
+        db.execute(f"UPDATE responsaveis_contrato SET {sets}, atualizado_em=? WHERE contrato_id=?",
+                   (*valores, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), cid))
         db.commit(); db.close()
         flash("✅ Dados de Gestor e Fiscal do contrato atualizados!", "success")
         return redirect(url_for("gestor_fiscal"))
-    row = db.execute("SELECT * FROM responsaveis_contrato WHERE id=1").fetchone()
+    row = db.execute("SELECT * FROM responsaveis_contrato WHERE contrato_id=?", (cid,)).fetchone()
     db.close()
     return render_template("gestor_fiscal.html", row=row)
+
+@app.route("/contrato/selecionar/<int:cid>", methods=["POST"])
+@login_required
+def selecionar_contrato(cid):
+    db = get_db()
+    row = db.execute("SELECT id FROM contratos WHERE id=? AND ativo=1", (cid,)).fetchone()
+    db.close()
+    if row:
+        session["contrato_ativo_id"] = cid
+        flash("✅ Contrato selecionado.", "success")
+    else:
+        flash("Contrato inválido.", "danger")
+    voltar = request.referrer or url_for("dashboard")
+    return redirect(voltar)
+
+@app.route("/configuracoes/contratos", methods=["GET","POST"])
+@admin_required
+def contratos():
+    db = get_db()
+    if request.method == "POST":
+        acao = request.form.get("acao")
+        if acao == "add":
+            numero  = request.form.get("numero","").strip()
+            tipo    = request.form.get("tipo","").strip() or "Outro"
+            empresa = request.form.get("empresa","").strip() or None
+            try: valor = float(request.form.get("valor_total","0").replace(",","."))
+            except: valor = 0.0
+            inicio     = request.form.get("data_inicio","").strip() or None
+            vencimento = request.form.get("data_vencimento","").strip() or None
+            if not numero or not inicio or not vencimento:
+                flash("Informe número, data de início e vencimento do contrato.", "danger")
+            else:
+                cur = db.execute("""INSERT INTO contratos(numero,tipo,empresa,valor_total,data_inicio,data_vencimento,ativo)
+                                    VALUES(?,?,?,?,?,?,1)""", (numero, tipo, empresa, valor, inicio, vencimento))
+                novo_id = cur.lastrowid
+                db.execute("INSERT OR IGNORE INTO orcamento(contrato_id,ano,valor) VALUES(?,?,?)", (novo_id, date.today().year, valor))
+                db.execute("INSERT OR IGNORE INTO responsaveis_contrato(contrato_id) VALUES(?)", (novo_id,))
+                flash(f"✅ Contrato '{numero}' ({tipo}) cadastrado!", "success")
+        elif acao == "edit":
+            cidf    = request.form.get("cid")
+            numero  = request.form.get("numero","").strip()
+            tipo    = request.form.get("tipo","").strip() or "Outro"
+            empresa = request.form.get("empresa","").strip() or None
+            try: valor = float(request.form.get("valor_total","0").replace(",","."))
+            except: valor = 0.0
+            inicio     = request.form.get("data_inicio","").strip() or None
+            vencimento = request.form.get("data_vencimento","").strip() or None
+            db.execute("""UPDATE contratos SET numero=?,tipo=?,empresa=?,valor_total=?,data_inicio=?,data_vencimento=?
+                          WHERE id=?""", (numero, tipo, empresa, valor, inicio, vencimento, cidf))
+            flash(f"✅ Contrato '{numero}' atualizado.", "success")
+        elif acao == "toggle":
+            cidf = request.form.get("cid")
+            db.execute("UPDATE contratos SET ativo = CASE WHEN ativo=1 THEN 0 ELSE 1 END WHERE id=?", (cidf,))
+            flash("Status do contrato alterado.", "info")
+        db.commit(); db.close()
+        return redirect(url_for("contratos"))
+    rows = db.execute("SELECT * FROM contratos ORDER BY ativo DESC, tipo, numero").fetchall()
+    db.close()
+    return render_template("contratos.html", rows=rows)
 
 @app.route("/relatorio")
 @login_required
 def relatorio():
     ano = int(request.args.get("ano", CONTRATO_ANO))
     db  = get_db()
-    orc = (db.execute("SELECT valor FROM orcamento WHERE ano=?", (ano,)).fetchone() or [CONTRATO_VALOR])[0]
+    contrato = get_contrato_ativo(db)
+    cid = contrato["id"] if contrato else 0
+    orc = (db.execute("SELECT valor FROM orcamento WHERE ano=? AND contrato_id=?", (ano, cid)).fetchone() or [CONTRATO_VALOR])[0]
     meses_nomes = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho",
                    "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"]
     dados = []
     acum = 0.0
     for m, nome in enumerate(meses_nomes, 1):
         q, v = db.execute("""SELECT COUNT(*), COALESCE(SUM(valor_total),0) FROM autorizacoes
-            WHERE strftime('%Y',data_autorizacao)=? AND strftime('%m',data_autorizacao)=? AND status!='CANCELADO'""",
-            (str(ano), f"{m:02d}")).fetchone()
+            WHERE strftime('%Y',data_autorizacao)=? AND strftime('%m',data_autorizacao)=? AND status!='CANCELADO' AND contrato_id=?""",
+            (str(ano), f"{m:02d}", cid)).fetchone()
         acum += v
         dados.append({"mes": nome, "qtd": q, "valor": v, "acumulado": acum,
                       "pct": (v/orc*100) if orc > 0 else 0})
@@ -787,8 +957,8 @@ def relatorio():
     JUST_OPCOES = ["DIABÉTICO","HIPERTENSO","GESTANTE","GESTANTE DE ALTO RISCO","INTERNADO","PÚBLICO GERAL"]
     just_contagem = {}
     todas = db.execute(
-        "SELECT justificativa FROM autorizacoes WHERE strftime('%Y',data_autorizacao)=? AND status!='CANCELADO'",
-        (str(ano),)).fetchall()
+        "SELECT justificativa FROM autorizacoes WHERE strftime('%Y',data_autorizacao)=? AND status!='CANCELADO' AND contrato_id=?",
+        (str(ano), cid)).fetchall()
     for opcao in JUST_OPCOES:
         just_contagem[opcao] = sum(1 for r in todas if r["justificativa"] and opcao in r["justificativa"].split(","))
     db.close()
@@ -800,10 +970,11 @@ def relatorio():
 @admin_required
 def limpar_base():
     db = get_db()
-    db.execute("DELETE FROM autorizacoes")
-    db.execute("DELETE FROM sqlite_sequence WHERE name='autorizacoes'")
+    contrato = get_contrato_ativo(db)
+    cid = contrato["id"] if contrato else 0
+    db.execute("DELETE FROM autorizacoes WHERE contrato_id=?", (cid,))
     db.commit(); db.close()
-    flash("🗑️ Base de autorizações limpa com sucesso! Pronto para uso real.", "warning")
+    flash("🗑️ Base de autorizações deste contrato limpa com sucesso! Pronto para uso real.", "warning")
     return redirect(url_for("historico"))
 
 @app.route("/orcamento", methods=["POST"])
@@ -813,7 +984,9 @@ def set_orcamento():
         ano = int(request.form.get("ano", CONTRATO_ANO))
         val = float(request.form.get("valor","0").replace(",","."))
         db  = get_db()
-        db.execute("INSERT INTO orcamento(ano,valor) VALUES(?,?) ON CONFLICT(ano) DO UPDATE SET valor=excluded.valor", (ano,val))
+        contrato = get_contrato_ativo(db)
+        cid = contrato["id"] if contrato else 0
+        db.execute("INSERT INTO orcamento(contrato_id,ano,valor) VALUES(?,?,?) ON CONFLICT(contrato_id,ano) DO UPDATE SET valor=excluded.valor", (cid,ano,val))
         db.commit(); db.close()
         flash(f"✅ Orçamento {ano} definido: {fmt_brl(val)}","success")
     except: flash("Erro ao salvar orçamento.","danger")
@@ -828,11 +1001,13 @@ def exportar(ano):
     except ImportError:
         flash("openpyxl não instalado.","danger"); return redirect(url_for("relatorio"))
     db   = get_db()
+    contrato = get_contrato_ativo(db)
+    cid = contrato["id"] if contrato else 0
     rows = db.execute("""SELECT data_autorizacao,numero_autorizacao,nome_paciente,cpf_cns,
                                 codigo_exame,descricao_exame,quantidade_liberada,valor_unitario,
                                 valor_total,responsavel,status,observacoes,justificativa
-                         FROM autorizacoes WHERE strftime('%Y',data_autorizacao)=?
-                         ORDER BY data_autorizacao,id""", (str(ano),)).fetchall()
+                         FROM autorizacoes WHERE strftime('%Y',data_autorizacao)=? AND contrato_id=?
+                         ORDER BY data_autorizacao,id""", (str(ano), cid)).fetchall()
     db.close()
     wb = openpyxl.Workbook(); ws = wb.active; ws.title = f"Autorizações {ano}"
     hdrs = ["Data","Nº Aut.","Paciente","CPF/CNS","Código","Descrição Exame","Qtde","Val.Unit","Val.Total","Responsável","Status","Obs","Justificativa"]
