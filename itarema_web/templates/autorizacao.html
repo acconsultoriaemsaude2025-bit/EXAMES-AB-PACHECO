@@ -5,11 +5,15 @@
 
 {% block head %}
 <style>
-  .linha-exame { background:#f8faff; border:1px solid #dee2e6; border-radius:8px; padding:10px 12px; margin-bottom:8px; }
+  .linha-exame { background:#f8faff; border:1px solid #dee2e6; border-radius:10px; padding:16px 18px; margin-bottom:14px; }
   .linha-exame:first-child .btn-remover { display:none; }
   .total-linha { font-weight:700; color:#198754; }
-  #tabelaExames .form-select { font-size:.85rem; }
-  #rodapeTotal { background:#1F3864; color:#fff; border-radius:8px; padding:10px 16px; }
+  #tabelaExames .form-select,
+  #tabelaExames .form-control-sm { font-size:.85rem; }
+  #tabelaExames .form-label { font-size:.82rem; color:#495057; margin-bottom:.35rem; }
+  #tabelaExames .desc-exame { text-overflow:ellipsis; white-space:nowrap; overflow:hidden; }
+  #tabelaExames .info-saldo { font-size:.8rem; }
+  #rodapeTotal { background:#1F3864; color:#fff; border-radius:8px; padding:14px 20px; }
 </style>
 {% endblock %}
 
@@ -31,7 +35,7 @@
       </div>
       <div class="card-body">
         <form method="post" id="frmAut">
-          <div class="row g-2 mb-3">
+          <div class="row g-3 mb-4">
             <!-- Nº / Data / Status -->
             <div class="col-md-2">
               <label class="form-label fw-semibold">Nº Aut.</label>
@@ -94,7 +98,7 @@
           </div>
 
           <!-- ── TABELA DE EXAMES ── -->
-          <div class="mb-2 d-flex align-items-center justify-content-between">
+          <div class="mb-3 d-flex align-items-center justify-content-between">
             <label class="form-label fw-semibold mb-0">
               <i class="bi bi-clipboard2-pulse me-1"></i>Exames Solicitados <span class="text-danger">*</span>
             </label>
@@ -106,19 +110,19 @@
           <div id="tabelaExames"></div>
 
           <!-- Alerta geral de saldo -->
-          <div id="alertaGeral" class="alert alert-danger py-2 mb-2 fw-bold" style="display:none">
+          <div id="alertaGeral" class="alert alert-danger py-2 mb-3 fw-bold" style="display:none">
             <i class="bi bi-exclamation-triangle-fill me-1"></i>
             <span id="alertaGeralMsg"></span>
           </div>
 
           <!-- Total Geral -->
-          <div id="rodapeTotal" class="d-flex justify-content-between align-items-center mb-3">
+          <div id="rodapeTotal" class="d-flex justify-content-between align-items-center mb-4">
             <span><i class="bi bi-calculator me-1"></i>Total Geral</span>
             <span id="totalGeral" class="fs-5 fw-bold text-warning">R$ 0,00</span>
           </div>
 
           <!-- Responsável / Observações -->
-          <div class="row g-2">
+          <div class="row g-3">
             <div class="col-md-6">
               <label class="form-label fw-semibold">Responsável <span class="text-danger">*</span></label>
               <input name="responsavel" type="text" class="form-control" placeholder="Nome do responsável" required>
@@ -129,7 +133,7 @@
             </div>
           </div>
 
-          <div class="mt-3 d-flex gap-2">
+          <div class="mt-4 d-flex gap-2">
             <button type="submit" id="btnSalvar" class="btn btn-primary">
               <i class="bi bi-check-circle me-1"></i>Salvar Autorização
             </button>
@@ -215,33 +219,32 @@ function criarLinha() {
   div.className = 'linha-exame';
   div.dataset.id = id;
   div.innerHTML = `
-    <div class="row g-1 align-items-end">
-      <div class="col-12 col-md-5">
-        <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Buscar Exame</label>
+    <div class="row g-3 align-items-end">
+      <div class="col-12 col-md-4">
+        <label class="form-label fw-semibold">Buscar Exame</label>
         <input type="text" class="form-control form-control-sm busca-exame" placeholder="Digite código ou nome..."
                autocomplete="off" data-id="${id}">
         <div class="lista-sugestoes border rounded bg-white shadow-sm" data-id="${id}"
-             style="display:none;position:absolute;z-index:200;max-height:200px;overflow-y:auto;width:350px;font-size:.82rem"></div>
+             style="display:none;position:absolute;z-index:200;max-height:220px;overflow-y:auto;min-width:320px;font-size:.82rem"></div>
       </div>
-      <div class="col-12 col-md-3">
-        <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Exame Selecionado</label>
+      <div class="col-6 col-md-2">
+        <label class="form-label fw-semibold">Exame Selecionado</label>
         <input type="text" class="form-control form-control-sm desc-exame" readonly placeholder="—"
-               style="background:#f0f4ff;font-size:.78rem">
+               title="" style="background:#f0f4ff">
         <input type="hidden" name="codigo_exame" class="cod-exame" data-id="${id}">
         <input type="hidden" name="valor_unitario" class="vu-exame" data-id="${id}" value="0">
       </div>
-      <div class="col-4 col-md-1">
-        <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Qtde</label>
+      <div class="col-6 col-md-1">
+        <label class="form-label fw-semibold">Qtde</label>
         <input type="number" name="quantidade_liberada" class="form-control form-control-sm qtde-exame"
                value="1" min="1" data-id="${id}">
       </div>
-      <div class="col-4 col-md-1">
-        <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Unit.</label>
-        <input type="text" class="form-control form-control-sm val-unit" readonly value="0,00"
-               style="font-size:.78rem">
+      <div class="col-6 col-md-2">
+        <label class="form-label fw-semibold">Unit.</label>
+        <input type="text" class="form-control form-control-sm val-unit" readonly value="0,00">
       </div>
-      <div class="col-4 col-md-2">
-        <label class="form-label mb-1 fw-semibold" style="font-size:.8rem">Total</label>
+      <div class="col-6 col-md-2">
+        <label class="form-label fw-semibold">Total</label>
         <input type="text" class="form-control form-control-sm total-linha fw-bold text-success" readonly value="R$ 0,00">
       </div>
       <div class="col-12 col-md-1 text-end">
@@ -250,7 +253,7 @@ function criarLinha() {
         </button>
       </div>
     </div>
-    <div class="info-saldo mt-1" data-id="${id}" style="display:none;font-size:.75rem"></div>
+    <div class="info-saldo mt-2" data-id="${id}" style="display:none"></div>
   `;
   tabela.appendChild(div);
   inicializarLinha(div, id);
@@ -282,6 +285,7 @@ function inicializarLinha(div, id) {
     cod.value   = codigo;
     vu.value    = ex.valor;
     desc.value  = ex.desc;
+    desc.title  = ex.desc;
     busca.value = ex.texto;
     valUnit.value = ex.valor.toLocaleString('pt-BR',{minimumFractionDigits:2});
     calcLinha();
