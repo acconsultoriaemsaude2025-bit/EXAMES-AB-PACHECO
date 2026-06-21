@@ -118,9 +118,9 @@
   </div>
   {% if CONTRATOS_LISTA and CONTRATOS_LISTA|length > 1 %}
   <div class="px-2 pt-2">
-    <form method="post" action="{{ url_for('selecionar_contrato', cid=999999) }}" id="frmContratoSel"
-          onsubmit="this.action=this.action.replace('999999',document.getElementById('selContrato').value)">
-      <select id="selContrato" name="cid" class="form-select form-select-sm" onchange="document.getElementById('frmContratoSel').submit()"
+    <form method="post" id="frmContratoSel" data-base="{{ url_for('selecionar_contrato', cid=0) }}">
+      <select id="selContrato" name="cid" class="form-select form-select-sm"
+              onchange="var f=document.getElementById('frmContratoSel'); f.action=f.dataset.base.replace(/0$/,this.value); f.submit()"
               style="font-size:.75rem">
         {% for c in CONTRATOS_LISTA %}
         <option value="{{ c.id }}" {% if CONTRATO_ATIVO and c.id == CONTRATO_ATIVO.id %}selected{% endif %}>
